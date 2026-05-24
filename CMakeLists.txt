@@ -44,6 +44,10 @@ set(APP_HEADERS
 add_executable(occt-imgui ${APP_SOURCES} ${APP_HEADERS})
 
 
+target_compile_definitions(occt-imgui PRIVATE
+  FONTS_DIR="${CMAKE_SOURCE_DIR}/src/fonts"
+)
+
 target_include_directories(occt-imgui PRIVATE
   ${CMAKE_SOURCE_DIR}/src
 )

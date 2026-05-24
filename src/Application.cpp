@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <thread>
 
-#include "fonts/roboto_medium.h"
+#include <string>
 
 static Application* g_app = nullptr;
 
@@ -248,10 +248,8 @@ void Application::initImGui() {
     float fontSize = 18.0f;
     float loadedFontSize = fontSize * hidpi / pixelRatio_;
 
-    io.Fonts->AddFontFromMemoryCompressedTTF(
-        roboto_medium_compressed_data,
-        roboto_medium_compressed_size,
-        loadedFontSize);
+    std::string fontPath = std::string(FONTS_DIR) + "/Roboto-SemiBold.ttf";
+    io.Fonts->AddFontFromFileTTF(fontPath.c_str(), loadedFontSize);
 
     // UI scaling = font_size / 16 * hidpi / pixel_ratio
     fontScale_ = fontSize / 16.0f * hidpi / pixelRatio_;
