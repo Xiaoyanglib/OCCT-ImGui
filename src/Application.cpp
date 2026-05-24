@@ -242,7 +242,6 @@ void Application::initImGui() {
     pixelRatio_ = (float)fbW / (float)wndW;
 
     // Font + UI scaling.
-    // Pixel size = (fontSize / pixelRatio * hidpi).
     float xscale, yscale;
     glfwGetWindowContentScale(window_, &xscale, &yscale);
     float hidpi = 0.5f * (xscale + yscale);
@@ -296,7 +295,7 @@ void Application::applyStyle() {
     set(ImGuiCol_ChildBg,            0.94f, 0.94f, 0.94f, 0.00f);
     set(ImGuiCol_PopupBg,            0.97f, 0.97f, 0.97f, 0.94f);
 
-    set(ImGuiCol_Text,               0.10f, 0.10f, 0.10f, 1.00f);
+    set(ImGuiCol_Text,               0.00f, 0.00f, 0.00f, 1.00f);
     set(ImGuiCol_TextDisabled,       0.50f, 0.50f, 0.50f, 1.00f);
 
     set(ImGuiCol_Border,             0.70f, 0.70f, 0.70f, 0.50f);

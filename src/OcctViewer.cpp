@@ -13,7 +13,6 @@
 #include "OcctViewer.h"
 #include "OcctWindow.h"
 
-#define GLFW_INCLUDE_NONE
 #if defined(__APPLE__)
   #define GLFW_EXPOSE_NATIVE_COCOA
   #define GLFW_EXPOSE_NATIVE_NSGL
@@ -61,7 +60,7 @@ OcctViewer::OcctViewer(GLFWwindow* glfwWindow)
 
     Handle(Aspect_DisplayConnection) display = new Aspect_DisplayConnection();
     Handle(OpenGl_GraphicDriver) driver = new OpenGl_GraphicDriver(display, false);
-    driver->SetBuffersNoSwap(Standard_True);
+    driver->SetBuffersNoSwap(true);
 
     viewer_ = new V3d_Viewer(driver);
     viewer_->SetDefaultLights();
@@ -194,16 +193,16 @@ bool OcctViewer::shiftSelect(int, int) {
 
 void OcctViewer::selectRectangle(int x1, int y1, int x2, int y2) {
     if (context_.IsNull() || view_.IsNull()) return;
-    context_->Select(std::min(x1, x2), std::min(y1, y2),
-                     std::max(x1, x2), std::max(y1, y2),
-                     view_, false);
+    context_->SelectRectangle(NCollection_Vec2<int>(std::min(x1, x2), std::min(y1, y2)),
+                              NCollection_Vec2<int>(std::max(x1, x2), std::max(y1, y2)),
+                              view_);
 }
 
 void OcctViewer::shiftSelectRectangle(int x1, int y1, int x2, int y2) {
     if (context_.IsNull() || view_.IsNull()) return;
-    context_->ShiftSelect(std::min(x1, x2), std::min(y1, y2),
-                          std::max(x1, x2), std::max(y1, y2),
-                          view_, false);
+    context_->SelectRectangle(NCollection_Vec2<int>(std::min(x1, x2), std::min(y1, y2)),
+                              NCollection_Vec2<int>(std::max(x1, x2), std::max(y1, y2)),
+                              view_, AIS_SelectionScheme_XOR);
 }
 
 void OcctViewer::clearSelection() {

@@ -372,6 +372,10 @@ void DemoApp::onImportFile(const char* path) {
         return;
     }
     const char* name = strrchr(path, '/');
+#ifdef _WIN32
+    const char* bs = strrchr(path, '\\');
+    if (bs > name) name = bs;
+#endif
     name = name ? name + 1 : path;
     addImportedShape(shape, name);
 }
