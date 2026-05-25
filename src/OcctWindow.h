@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2026 Xiaoyang Yu
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #pragma once
 
 #include <Aspect_RenderingContext.hxx>
@@ -15,31 +37,31 @@ public:
     void updateSize(int w, int h);
     Aspect_RenderingContext NativeGlContext() const;
 
-    virtual Aspect_Drawable NativeHandle() const Standard_OVERRIDE;
-    virtual Aspect_Drawable NativeParentHandle() const Standard_OVERRIDE { return 0; }
-    virtual Aspect_TypeOfResize DoResize() Standard_OVERRIDE;
-    virtual Standard_Boolean IsMapped() const Standard_OVERRIDE { return Standard_True; }
-    virtual Standard_Boolean DoMapping() const Standard_OVERRIDE { return Standard_True; }
-    virtual void Map() const Standard_OVERRIDE {}
-    virtual void Unmap() const Standard_OVERRIDE {}
+    Aspect_Drawable NativeHandle() const override;
+    Aspect_Drawable NativeParentHandle() const override { return 0; }
+    Aspect_TypeOfResize DoResize() override;
+    bool IsMapped() const override { return true; }
+    bool DoMapping() const override { return true; }
+    void Map() const override {}
+    void Unmap() const override {}
 
-    void Position(Standard_Integer& theX1, Standard_Integer& theY1,
-                  Standard_Integer& theX2, Standard_Integer& theY2) const
+    void Position(int& theX1, int& theY1,
+                  int& theX2, int& theY2) const override
     {
         theX1 = myXLeft; theX2 = myXRight; theY1 = myYTop; theY2 = myYBottom;
     }
-    virtual Standard_Real Ratio() const
+    double Ratio() const override
     {
-        return Standard_Real(myXRight - myXLeft) / Standard_Real(myYBottom - myYTop);
+        return double(myXRight - myXLeft) / double(myYBottom - myYTop);
     }
-    virtual void Size(Standard_Integer& theWidth, Standard_Integer& theHeight) const
+    void Size(int& theWidth, int& theHeight) const override
     {
         theWidth = myXRight - myXLeft; theHeight = myYBottom - myYTop;
     }
-    virtual Aspect_FBConfig NativeFBConfig() const { return nullptr; }
+    Aspect_FBConfig NativeFBConfig() const override { return nullptr; }
 
 private:
     GLFWwindow* myWindow;
-    Standard_Integer myXLeft = 0, myYTop = 0;
-    Standard_Integer myXRight = 0, myYBottom = 0;
+    int myXLeft = 0, myYTop = 0;
+    int myXRight = 0, myYBottom = 0;
 };
