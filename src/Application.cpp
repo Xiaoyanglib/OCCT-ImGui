@@ -238,6 +238,7 @@ void Application::initWindow() {
     }
 
     glfwMakeContextCurrent(window_);
+    glfwMaximizeWindow(window_);
     glfwSwapInterval(1);
 
     glfwSetKeyCallback(window_, glfwKeyCallback);
