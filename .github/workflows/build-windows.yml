@@ -1,4 +1,4 @@
-name: Build
+name: Windows
 
 on:
   push:
@@ -7,22 +7,6 @@ on:
     branches: [main]
 
 jobs:
-  macOS:
-    runs-on: macos-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install OCCT
-      run: |
-        brew install opencascade
-        echo "OpenCASCADE_DIR=$(brew --prefix opencascade)/lib/cmake/opencascade" >> $GITHUB_ENV
-
-    - name: Configure
-      run: cmake -B build -S . -DOpenCASCADE_DIR="$OpenCASCADE_DIR"
-
-    - name: Build
-      run: cmake --build build
-
   Windows:
     runs-on: windows-latest
     steps:
@@ -40,7 +24,6 @@ jobs:
         if ($size -lt 1000) { Write-Error "File too small, likely redirect page"; Get-Content $zip; exit 1 }
         Expand-Archive -Path $zip -DestinationPath C:/occt_outer -Force
         Expand-Archive -Path C:/occt_outer/opencascade-8.0.0-vc14-64.zip -DestinationPath C:/occt -Force
-        # Find OpenCASCADEConfig.cmake
         $cfg = Get-ChildItem -Path C:/occt -Recurse -Filter "OpenCASCADEConfig.cmake" | Select-Object -First 1
         if ($cfg) {
           $dir = $cfg.DirectoryName

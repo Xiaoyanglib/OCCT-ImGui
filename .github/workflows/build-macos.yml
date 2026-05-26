@@ -1,0 +1,24 @@
+name: macOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  macOS:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install OCCT
+      run: |
+        brew install opencascade
+        echo "OpenCASCADE_DIR=$(brew --prefix opencascade)/lib/cmake/opencascade" >> $GITHUB_ENV
+
+    - name: Configure
+      run: cmake -B build -S . -DOpenCASCADE_DIR="$OpenCASCADE_DIR"
+
+    - name: Build
+      run: cmake --build build

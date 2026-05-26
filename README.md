@@ -1,7 +1,7 @@
 # OCCT-ImGui
 
-[![Windows](https://github.com/Xiaoyanglib/OCCT-ImGui/actions/workflows/build.yml/badge.svg?job=Windows)](https://github.com/Xiaoyanglib/OCCT-ImGui/actions/workflows/build.yml)
-[![macOS](https://github.com/Xiaoyanglib/OCCT-ImGui/actions/workflows/build.yml/badge.svg?job=macOS)](https://github.com/Xiaoyanglib/OCCT-ImGui/actions/workflows/build.yml)
+![Windows](https://github.com/Xiaoyanglib/OCCT-ImGui/actions/workflows/build-windows.yml/badge.svg)
+![macOS](https://github.com/Xiaoyanglib/OCCT-ImGui/actions/workflows/build-macos.yml/badge.svg)
 
 A lightweight CAD viewer built on [OpenCASCADE](https://dev.opencascade.org/) (OCCT) and [Dear ImGui](https://github.com/ocornut/imgui), with [GLFW](https://www.glfw.org/) for windowing and OpenGL rendering.
 
@@ -9,13 +9,10 @@ A lightweight CAD viewer built on [OpenCASCADE](https://dev.opencascade.org/) (O
 
 ## ✨ Features
 
-- **3D Shape Viewer** — display, rotate, pan, and zoom CAD models (STEP, IGES, BREP, STL)
+- **3D Shape Viewer** — display, rotate, pan, and zoom CAD models (STEP, IGES, BREP)
 - **Object Panel** — toggle visibility, change colors, add primitives, delete shapes
 - **Selection** — click to select/deselect, Shift+drag for rectangle selection
 - **Import/Export** — load and save CAD files via native file dialogs
-- **Dockable UI** — panels for Objects, Viewer info, and custom tools
-- **macOS Trackpad** — pinch-to-zoom and smooth scrolling
-- **HiDPI** — Retina display support with proper font rendering
 
 ## 📁 Project Structure
 
