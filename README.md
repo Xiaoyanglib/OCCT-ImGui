@@ -5,7 +5,7 @@
 
 A lightweight CAD viewer built on [OpenCASCADE](https://dev.opencascade.org/) (OCCT) and [Dear ImGui](https://github.com/ocornut/imgui), with [GLFW](https://www.glfw.org/) for windowing and OpenGL rendering.
 
-**Supported platforms:** 💻 Windows · 🍎 macOS  *(🐧 Linux is not supported)*
+**Supported platforms:** 💻 Windows · 🍎 macOS ·  *(🐧 Linux is not supported)*
 
 ## ✨ Features
 
@@ -28,13 +28,18 @@ OCCT-ImGui/
 ├── deps/                   # Fetched dependencies (gitignored, populated at build)
 │   ├── glfw/
 │   └── imgui/
+├── tests/
+│   ├── CMakeLists.txt          # GTest via FetchContent
+│   └── test_occt_imgui.cpp     # Viewer API tests
 └── src/
-    ├── main.cpp            # Entry point, DemoApp class, drawObjectPanel
-    ├── Application.cpp/.h  # Base app: window, ImGui init, docking, style
-    ├── OcctViewer.cpp/.h   # OCCT 3D viewer: camera, selection, import/export
-    ├── OcctWindow.cpp/.h   # GLFW-to-OCCT window bridge
-    ├── OcctImConfig.h      # ImGui user config header
-    └── fonts/              # Roboto font files (SemiBold, Regular, etc.)
+    ├── main.cpp                # DemoApp: demo shapes + import/export dialog
+    ├── Application.cpp/.h      # Framework: window, ImGui, docking, style,
+    │                           #   menu/status bars, Viewer panel, rect select
+    ├── OcctImGui.cpp/.h        # Library: shape management, Objects panel, import
+    ├── OcctViewer.cpp/.h       # OCCT 3D viewer: camera, selection, import/export
+    ├── OcctWindow.cpp/.h       # GLFW-to-OCCT window bridge
+    ├── OcctImConfig.h          # ImGui user config header
+    └── fonts/                  # Roboto font files (SemiBold, Regular, etc.)
 ```
 
 ## 📦 Dependencies
@@ -77,6 +82,17 @@ Set `OpenCASCADE_DIR` to the directory containing `OpenCASCADEConfig.cmake` (typ
 | Toggle Viewer panel | `F7` |
 | Toggle Objects panel | `F8` |
 | Import file | Drag & drop / File → Import |
+
+## 🙏 Acknowledgements
+
+Built with and inspired by these excellent projects:
+
+- [OpenCASCADE](https://dev.opencascade.org/) — CAD kernel
+- [Dear ImGui](https://github.com/ocornut/imgui) — immediate-mode GUI
+- [GLFW](https://www.glfw.org/) — cross-platform windowing
+- [Geogram](https://github.com/BrunoLevy/geogram) — reference for ImGui + 3D viewer integration
+- [OcctImgui](https://github.com/eryar/OcctImgui) — reference OCCT + ImGui integration
+- [OCC-QT-Demo](https://github.com/ajune-wang/OCC-QT-Demo) — reference for OCCT application patterns
 
 ## 📄 License
 

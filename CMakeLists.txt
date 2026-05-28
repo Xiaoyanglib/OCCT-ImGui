@@ -29,41 +29,41 @@ set(OpenCASCADE_DIR "$ENV{OpenCASCADE_DIR}" CACHE PATH "Directory where OpenCASC
 include(Dependencies)
 
 ###############################################################################
-# occt-imgui executable
+# occt-imgui library
 ###############################################################################
-set(APP_SOURCES
-  src/main.cpp
+set(LIB_SOURCES
   src/Application.cpp
   src/OcctViewer.cpp
   src/OcctWindow.cpp
+  src/OcctImGui.cpp
 )
 
-set(APP_HEADERS
+set(LIB_HEADERS
   src/OcctImConfig.h
   src/Application.h
   src/OcctViewer.h
   src/OcctWindow.h
+  src/OcctImGui.h
 )
 
-add_executable(occt-imgui ${APP_SOURCES} ${APP_HEADERS})
+add_library(OcctImGui STATIC ${LIB_SOURCES} ${LIB_HEADERS})
 
-
-target_compile_definitions(occt-imgui PRIVATE
+target_compile_definitions(OcctImGui PRIVATE
   FONTS_DIR="${CMAKE_SOURCE_DIR}/src/fonts"
 )
 
-target_include_directories(occt-imgui PRIVATE
+target_include_directories(OcctImGui PUBLIC
   ${CMAKE_SOURCE_DIR}/src
 )
 
-target_link_libraries(occt-imgui PRIVATE
+target_link_libraries(OcctImGui PUBLIC
   imgui
   glfw
   OpenCASCADE::OpenCASCADE
 )
 
 if(APPLE)
-  target_link_libraries(occt-imgui PRIVATE
+  target_link_libraries(OcctImGui PUBLIC
     "-framework OpenGL"
     "-framework Cocoa"
     "-framework IOKit"
@@ -71,10 +71,25 @@ if(APPLE)
 endif()
 
 if(MSVC)
-  target_compile_options(occt-imgui PRIVATE /EHsc)
+  target_compile_options(OcctImGui PRIVATE /EHsc)
 else()
-  target_compile_options(occt-imgui PRIVATE
+  target_compile_options(OcctImGui PRIVATE
     -fexceptions
     -Wno-elaborated-enum-base
   )
+endif()
+
+###############################################################################
+# Demo executable
+###############################################################################
+add_executable(OcctImGuiDemo src/main.cpp)
+target_link_libraries(OcctImGuiDemo PRIVATE OcctImGui)
+
+###############################################################################
+# Tests
+###############################################################################
+option(BUILD_TESTS "Build tests" ON)
+if(BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
 endif()

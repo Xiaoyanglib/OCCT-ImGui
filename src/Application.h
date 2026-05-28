@@ -40,6 +40,7 @@ public:
 protected:
     virtual void init();
     virtual void drawGui();
+    virtual void drawViewerPanel();
     virtual void drawMenuBar();
     virtual void drawStatusBar();
     virtual void drawRubberBand();

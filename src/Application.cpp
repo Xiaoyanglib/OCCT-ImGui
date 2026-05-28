@@ -584,8 +584,45 @@ void Application::drawDockSpace() {
 
 void Application::init() {}
 void Application::drawGui() {}
+
+void Application::drawViewerPanel() {
+    ImGui::Begin("Viewer", &showViewerPanel_);
+
+    ImGui::Text("Display");
+    ImGui::Separator();
+    ImGui::BulletText("Background: White");
+    ImGui::BulletText("Projection: Perspective");
+
+    ImGui::Spacing();
+    ImGui::Text("Mouse Controls");
+    ImGui::Separator();
+    ImGui::BulletText("Left drag:   Pan");
+    ImGui::BulletText("Right drag:  Rotate");
+    ImGui::BulletText("Middle drag: Zoom");
+    ImGui::BulletText("Scroll:      Zoom");
+
+    ImGui::Spacing();
+    ImGui::Text("Keyboard");
+    ImGui::Separator();
+    ImGui::BulletText("F:     Fit All");
+    ImGui::BulletText("F7:    Toggle Viewer");
+    ImGui::BulletText("F8:    Toggle Objects");
+
+    ImGui::End();
+}
 void Application::onImport() {}
 void Application::onExport() {}
 void Application::onImportFile(const char*) {}
-void Application::postFrame() {}
+void Application::postFrame() {
+    if (pendingRectSelect_) {
+        float pr = pixelRatio_;
+        if (pendingRectShift_)
+            viewer_->shiftSelectRectangle(rectX1_ * pr, rectY1_ * pr,
+                                          rectX2_ * pr, rectY2_ * pr);
+        else
+            viewer_->selectRectangle(rectX1_ * pr, rectY1_ * pr,
+                                     rectX2_ * pr, rectY2_ * pr);
+        pendingRectSelect_ = false;
+    }
+}
 void Application::shutdown() {}
