@@ -21,22 +21,24 @@ target_link_libraries(OcctImGuiTests PRIVATE
   GTest::gtest_main
 )
 
-include(GoogleTest)
-
 # Copy OCCT shared libs to test output dir so gtest_discover_tests can run
-get_filename_component(OCCT_PREFIX ${OpenCASCADE_DIR}/../../.. ABSOLUTE)
 if(WIN32)
-  set(OCCT_BIN_DIR ${OCCT_PREFIX}/bin)
-  set(OCCT_DLL_SUFFIX dll)
+  get_filename_component(OCCT_ARCH_DIR ${OpenCASCADE_LIBRARY_DIR}/.. ABSOLUTE)
+  set(OCCT_DLL_DIRS ${OCCT_ARCH_DIR}/bin ${OpenCASCADE_LIBRARY_DIR})
+  set(OCCT_DLL_GLOB "*.dll")
 elseif(APPLE)
-  set(OCCT_BIN_DIR ${OCCT_PREFIX}/lib)
-  set(OCCT_DLL_SUFFIX dylib)
+  set(OCCT_DLL_DIRS ${OpenCASCADE_LIBRARY_DIR})
+  set(OCCT_DLL_GLOB "*.dylib")
 endif()
 
-file(GLOB OCCT_DLLS ${OCCT_BIN_DIR}/*.${OCCT_DLL_SUFFIX})
-if(OCCT_DLLS)
+foreach(DIR ${OCCT_DLL_DIRS})
+  file(GLOB OCCT_DLLS ${DIR}/${OCCT_DLL_GLOB})
+  list(APPEND ALL_OCCT_DLLS ${OCCT_DLLS})
+endforeach()
+
+if(ALL_OCCT_DLLS)
   add_custom_command(TARGET OcctImGuiTests POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${OCCT_DLLS} $<TARGET_FILE_DIR:OcctImGuiTests>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ALL_OCCT_DLLS} $<TARGET_FILE_DIR:OcctImGuiTests>
     COMMENT "Copying OCCT shared libraries for test discovery"
   )
 endif()
