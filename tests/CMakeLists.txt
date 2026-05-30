@@ -19,8 +19,18 @@ target_include_directories(OcctImGuiTests PRIVATE
 target_link_libraries(OcctImGuiTests PRIVATE
   OcctImGui
   GTest::gtest_main
-  OpenCASCADE::OpenCASCADE  # direct link so MSVC copies DLLs for test discovery
+  OpenCASCADE::OpenCASCADE
 )
 
 include(GoogleTest)
-gtest_discover_tests(OcctImGuiTests)
+
+if(WIN32)
+  # DLLs are in <prefix>/win64/vc14/bin, sibling of lib/
+  cmake_path(GET OpenCASCADE_LIBRARY_DIR PARENT_PATH OCCT_ARCH_DIR)
+  gtest_discover_tests(OcctImGuiTests
+    DISCOVERY_MODE PRE_TEST
+    PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OCCT_ARCH_DIR}/bin"
+  )
+else()
+  gtest_discover_tests(OcctImGuiTests)
+endif()
