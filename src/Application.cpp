@@ -472,11 +472,7 @@ void Application::mainLoop() {
 
         drawDockSpace();
         drawGui();
-        if (showTool_) {
-            ImGui::Begin("Tool", &showTool_);
-            ImGui::TextUnformatted("hello imgui");
-            ImGui::End();
-        }
+        if (showTool_) drawToolPanel();
         drawStatusBar();
         drawRubberBand();
 
@@ -488,6 +484,7 @@ void Application::mainLoop() {
             viewer_->fitAll();
         }
 
+        preFrame();
         viewer_->redraw();
         glfwMakeContextCurrent(window_);
 
@@ -610,6 +607,13 @@ void Application::drawViewerPanel() {
 
     ImGui::End();
 }
+void Application::drawToolPanel() {
+    ImGui::Begin("Tool", &showTool_);
+    ImGui::TextUnformatted("hello imgui");
+    ImGui::End();
+}
+
+void Application::preFrame() {}
 void Application::onImport() {}
 void Application::onExport() {}
 void Application::onImportFile(const char*) {}

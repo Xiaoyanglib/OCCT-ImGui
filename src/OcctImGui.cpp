@@ -27,8 +27,15 @@
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
+#include <BRep_Builder.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
+#include <TopoDS_Compound.hxx>
 #include <gp_Trsf.hxx>
 #include <gp_Vec.hxx>
+#include <gp_Pln.hxx>
+#include <Graphic3d_ClipPlane.hxx>
 #include <Quantity_Color.hxx>
 #include <Prs3d_ShadingAspect.hxx>
 
@@ -129,6 +136,10 @@ void Viewer::drawGui() {
     if (showViewerPanel_) drawViewerPanel();  // Application::drawViewerPanel
 }
 
+void Viewer::preFrame() {
+    Application::preFrame();
+}
+
 void Viewer::postFrame() {
     Application::postFrame();  // rect select handling
 
@@ -145,6 +156,44 @@ void Viewer::postFrame() {
         shapes_.end());
 
     v->updateViewer();
+}
+
+// ─── Import / Export (built-in) ────────────────────────────────────────────
+
+void Viewer::onImport() {
+    char path[1024] = {};
+    if (!OcctViewer::openFileDialog(path, sizeof(path)))
+        return;
+    onImportFile(path);
+}
+
+void Viewer::onImportFile(const char* path) {
+    importFile(path);
+}
+
+void Viewer::onExport() {
+    NCollection_List<TopoDS_Shape> selected;
+    viewer()->getSelectedShapes(selected);
+    if (selected.IsEmpty()) {
+        printf("No shapes selected for export\n");
+        return;
+    }
+
+    char path[1024] = {};
+    if (!OcctViewer::saveFileDialog(path, sizeof(path)))
+        return;
+
+    if (selected.Size() == 1) {
+        viewer()->exportShape(selected.First(), path);
+    } else {
+        TopoDS_Compound compound;
+        BRep_Builder builder;
+        builder.MakeCompound(compound);
+        for (auto& s : selected)
+            builder.Add(compound, s);
+        viewer()->exportShape(compound, path);
+    }
+    printf("Exported: %s\n", path);
 }
 
 // ─── Panels ─────────────────────────────────────────────────────────────────
@@ -272,6 +321,136 @@ void Viewer::drawObjectPanel() {
     if (ImGui::Button("+ Box",      ImVec2(-1, 0))) addShape(BRepPrimAPI_MakeBox(40, 40, 40).Shape(), 0.30f, 0.60f, 0.50f, "Box");
     if (ImGui::Button("+ Sphere",   ImVec2(-1, 0))) addShape(BRepPrimAPI_MakeSphere(25).Shape(),     0.40f, 0.80f, 0.60f, "Sphere");
     if (ImGui::Button("+ Cylinder", ImVec2(-1, 0))) addShape(BRepPrimAPI_MakeCylinder(18, 50).Shape(), 0.27f, 0.50f, 0.68f, "Cylinder");
+
+    ImGui::End();
+}
+
+// ─── Tool Panel (section / clip) ──────────────────────────────────────────
+
+void Viewer::updateClipPlane() {
+    OcctViewer* v = viewer();
+    if (!sectionOn_) {
+        if (v->hasClipPlane(kSectionPlaneId))
+            v->removeClipPlane(kSectionPlaneId);
+        if (!clipFrame_.empty()) {
+            for (auto& s : clipFrame_)
+                v->removeShape(s, false);
+            clipFrame_.clear();
+            v->context()->UpdateCurrentViewer();
+        }
+        return;
+    }
+
+    // On first enable: capture plane from current camera (like geobox:
+    // plane is set once, then world-fixed until explicitly edited)
+    if (!v->hasClipPlane(kSectionPlaneId)) {
+        double xmin, ymin, zmin, xmax, ymax, zmax;
+        v->getBoundingBox(&xmin, &ymin, &zmin, &xmax, &ymax, &zmax);
+        clipCenter_ = gp_Pnt((xmin+xmax)*0.5, (ymin+ymax)*0.5, (zmin+zmax)*0.5);
+        gp_Pnt eye = v->view()->Camera()->Eye();
+        clipNormal_ = gp_Dir(clipCenter_.X()-eye.X(), clipCenter_.Y()-eye.Y(), clipCenter_.Z()-eye.Z());
+        gp_Dir camUp = v->view()->Camera()->Up();
+        clipDx_ = gp_Dir(camUp.Y()*clipNormal_.Z()-camUp.Z()*clipNormal_.Y(),
+                         camUp.Z()*clipNormal_.X()-camUp.X()*clipNormal_.Z(),
+                         camUp.X()*clipNormal_.Y()-camUp.Y()*clipNormal_.X());
+        clipDy_ = gp_Dir(clipNormal_.Y()*clipDx_.Z()-clipNormal_.Z()*clipDx_.Y(),
+                         clipNormal_.Z()*clipDx_.X()-clipNormal_.X()*clipDx_.Z(),
+                         clipNormal_.X()*clipDx_.Y()-clipNormal_.Y()*clipDx_.X());
+        v->addClipPlane(kSectionPlaneId, gp_Pln(clipCenter_, clipNormal_));
+    } else if (clipEditOn_) {
+        // Editing: translate along normal
+        gp_Pnt origin(clipCenter_.X() + clipNormal_.X()*clipPos_,
+                      clipCenter_.Y() + clipNormal_.Y()*clipPos_,
+                      clipCenter_.Z() + clipNormal_.Z()*clipPos_);
+        v->setClipPlaneEquation(kSectionPlaneId, gp_Pln(origin, clipNormal_));
+    }
+    updateClipFrame();
+}
+
+void Viewer::updateClipFrame() {
+    OcctViewer* v = viewer();
+    if (!sectionOn_) return;
+
+    for (auto& s : clipFrame_)
+        v->removeShape(s, false);
+    clipFrame_.clear();
+
+    gp_Pnt planeCtr = clipEditOn_
+        ? gp_Pnt(clipCenter_.X() + clipNormal_.X() * clipPos_,
+                 clipCenter_.Y() + clipNormal_.Y() * clipPos_,
+                 clipCenter_.Z() + clipNormal_.Z() * clipPos_)
+        : clipCenter_;
+
+    double xmin, ymin, zmin, xmax, ymax, zmax;
+    v->getBoundingBox(&xmin, &ymin, &zmin, &xmax, &ymax, &zmax);
+    double diag = sqrt((xmax-xmin)*(xmax-xmin) + (ymax-ymin)*(ymax-ymin) + (zmax-zmin)*(zmax-zmin));
+    double w = diag * 1.25;
+
+    auto pt = [&](double u, double v) {
+        return gp_Pnt(planeCtr.X() + clipDx_.X()*u + clipDy_.X()*v,
+                      planeCtr.Y() + clipDx_.Y()*u + clipDy_.Y()*v,
+                      planeCtr.Z() + clipDx_.Z()*u + clipDy_.Z()*v);
+    };
+
+    BRepBuilderAPI_MakeWire wireMaker;
+    wireMaker.Add(BRepBuilderAPI_MakeEdge(pt(-w, -w), pt(w, -w)));
+    wireMaker.Add(BRepBuilderAPI_MakeEdge(pt(w, -w), pt(w, w)));
+    wireMaker.Add(BRepBuilderAPI_MakeEdge(pt(w, w), pt(-w, w)));
+    wireMaker.Add(BRepBuilderAPI_MakeEdge(pt(-w, w), pt(-w, -w)));
+
+    auto addAIS = [&](const TopoDS_Shape& s) {
+        auto* ais = new AIS_Shape(s);
+        ais->SetDisplayMode(AIS_WireFrame);
+        ais->SetColor(Quantity_Color(0.1, 0.1, 0.1, Quantity_TOC_RGB));
+        clipFrame_.push_back(ais);
+        v->displayShape(ais, false);
+    };
+    addAIS(BRepBuilderAPI_MakeFace(wireMaker.Wire()));
+
+    double thin = diag * 0.002;
+    {
+        BRepBuilderAPI_MakeWire w2;
+        w2.Add(BRepBuilderAPI_MakeEdge(pt(-w, -thin), pt(w, -thin)));
+        w2.Add(BRepBuilderAPI_MakeEdge(pt(w, -thin), pt(w, thin)));
+        w2.Add(BRepBuilderAPI_MakeEdge(pt(w, thin), pt(-w, thin)));
+        w2.Add(BRepBuilderAPI_MakeEdge(pt(-w, thin), pt(-w, -thin)));
+        addAIS(BRepBuilderAPI_MakeFace(w2.Wire()));
+    }
+    {
+        BRepBuilderAPI_MakeWire w2;
+        w2.Add(BRepBuilderAPI_MakeEdge(pt(-thin, -w), pt(thin, -w)));
+        w2.Add(BRepBuilderAPI_MakeEdge(pt(thin, -w), pt(thin, w)));
+        w2.Add(BRepBuilderAPI_MakeEdge(pt(thin, w), pt(-thin, w)));
+        w2.Add(BRepBuilderAPI_MakeEdge(pt(-thin, w), pt(-thin, -w)));
+        addAIS(BRepBuilderAPI_MakeFace(w2.Wire()));
+    }
+}
+
+void Viewer::drawToolPanel() {
+    ImGui::Begin("Tool", &showTool_);
+
+    ImGui::Text("Section View");
+    ImGui::Separator();
+
+    // "Clipping" checkbox (geobox: Checkbox("Clipping", &clipping_))
+    if (ImGui::Checkbox("Clipping", &sectionOn_))
+        pendingActions_.push_back([this](OcctViewer*) { updateClipPlane(); });
+
+    if (!sectionOn_) { ImGui::End(); return; }
+
+    // "edit clip" checkbox (geobox: Checkbox("edit clip", &edit_clip_))
+    if (ImGui::Checkbox("Edit Clip", &clipEditOn_))
+        pendingActions_.push_back([this](OcctViewer*) { updateClipPlane(); });
+
+    if (clipEditOn_) {
+        OcctViewer* v = viewer();
+        double xmin, ymin, zmin, xmax, ymax, zmax;
+        v->getBoundingBox(&xmin, &ymin, &zmin, &xmax, &ymax, &zmax);
+        double diag = sqrt((xmax-xmin)*(xmax-xmin) + (ymax-ymin)*(ymax-ymin) + (zmax-zmin)*(zmax-zmin));
+        float range = (float)(diag * 0.8);
+        if (ImGui::SliderFloat("Position", &clipPos_, -range, range))
+            pendingActions_.push_back([this](OcctViewer*) { updateClipPlane(); });
+    }
 
     ImGui::End();
 }

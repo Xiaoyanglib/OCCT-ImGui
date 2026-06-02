@@ -41,12 +41,14 @@ protected:
     virtual void init();
     virtual void drawGui();
     virtual void drawViewerPanel();
+    virtual void drawToolPanel();
     virtual void drawMenuBar();
     virtual void drawStatusBar();
     virtual void drawRubberBand();
     virtual void onImport();
     virtual void onExport();
     virtual void onImportFile(const char* path);
+    virtual void preFrame();
     virtual void postFrame();
     virtual void shutdown();
 
@@ -58,7 +60,7 @@ protected:
 
     bool showViewerPanel_ = true;
     bool showObjectPanel_ = true;
-    bool showTool_        = false;
+    bool showTool_        = true;
     bool guiWantsMouse_   = false;
     bool firstFrame_      = true;
     bool panning_         = false;   // left-drag → pan

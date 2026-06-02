@@ -30,6 +30,8 @@
 #include <TopoDS_Shape.hxx>
 #include <NCollection_List.hxx>
 #include <Aspect_Window.hxx>
+#include <Graphic3d_ClipPlane.hxx>
+#include <gp_Pln.hxx>
 
 struct GLFWwindow;
 
@@ -61,6 +63,16 @@ public:
     bool exportShape(const TopoDS_Shape& shape, const char* path);
     void getSelectedShapes(NCollection_List<TopoDS_Shape>& outList);
 
+    // Clip / section planes
+    void addClipPlane(int id, const gp_Pln& plane);
+    void removeClipPlane(int id);
+    void setClipPlaneEquation(int id, const gp_Pln& plane);
+    void setClipPlaneOn(int id, bool on);
+    void setClipPlaneCapping(int id, bool enable, Quantity_Color color, float alpha = 0.0f);
+    bool hasClipPlane(int id) const;
+    void getBoundingBox(double* xmin, double* ymin, double* zmin,
+                        double* xmax, double* ymax, double* zmax) const;
+
     // File dialogs
     static bool openFileDialog(char* outPath, int maxLen);
     static bool saveFileDialog(char* outPath, int maxLen);
@@ -83,4 +95,5 @@ private:
     Handle(V3d_Viewer) viewer_;
     Handle(V3d_View) view_;
     Handle(AIS_InteractiveContext) context_;
+    NCollection_DataMap<int, Handle(Graphic3d_ClipPlane)> clipPlanes_;
 };

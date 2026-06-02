@@ -21,72 +21,15 @@
 // SOFTWARE.
 
 #include "OcctImGui.h"
-#include "OcctViewer.h"
 
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
-#include <BRep_Builder.hxx>
-#include <TopoDS_Compound.hxx>
-
-// ─── DemoApp ────────────────────────────────────────────────────────────────
-
-class DemoApp : public OcctImGui::Viewer {
-public:
-    void init() override;
-    void onImport() override;
-    void onExport() override;
-    void onImportFile(const char* path) override;
-};
-
-void DemoApp::init() {
-    addShape(BRepPrimAPI_MakeBox(40, 40, 40).Shape(),    0.30f, 0.69f, 0.50f, "Box",      0, 0, 0);
-    addShape(BRepPrimAPI_MakeSphere(30).Shape(),          0.37f, 0.81f, 0.59f, "Sphere",   80, 0, 0);
-    addShape(BRepPrimAPI_MakeCylinder(20, 60).Shape(),    0.24f, 0.56f, 0.40f, "Cylinder", -80, 0, 0);
-
-    Viewer::init();
-    printf("Demo initialized: Box, Sphere, Cylinder\n");
-}
-
-void DemoApp::onImport() {
-    char path[1024] = {};
-    if (!OcctViewer::openFileDialog(path, sizeof(path)))
-        return;
-    onImportFile(path);
-}
-
-void DemoApp::onImportFile(const char* path) {
-    importFile(path);
-}
-
-void DemoApp::onExport() {
-    NCollection_List<TopoDS_Shape> selected;
-    viewer()->getSelectedShapes(selected);
-    if (selected.IsEmpty()) {
-        printf("No shapes selected for export\n");
-        return;
-    }
-
-    char path[1024] = {};
-    if (!OcctViewer::saveFileDialog(path, sizeof(path)))
-        return;
-
-    if (selected.Size() == 1) {
-        viewer()->exportShape(selected.First(), path);
-    } else {
-        TopoDS_Compound compound;
-        BRep_Builder builder;
-        builder.MakeCompound(compound);
-        for (auto& s : selected)
-            builder.Add(compound, s);
-        viewer()->exportShape(compound, path);
-    }
-    printf("Exported: %s\n", path);
-}
-
-// ─── main ───────────────────────────────────────────────────────────────────
 
 int main() {
-    DemoApp app;
+    OcctImGui::Viewer app;
+    app.addShape(BRepPrimAPI_MakeBox(40, 40, 40).Shape(),    0.30f, 0.69f, 0.50f, "Box",      0, 0, 0);
+    app.addShape(BRepPrimAPI_MakeSphere(30).Shape(),          0.37f, 0.81f, 0.59f, "Sphere",   80, 0, 0);
+    app.addShape(BRepPrimAPI_MakeCylinder(20, 60).Shape(),    0.24f, 0.56f, 0.40f, "Cylinder", -80, 0, 0);
     return app.run();
 }

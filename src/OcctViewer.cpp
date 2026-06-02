@@ -65,6 +65,10 @@
 #include <BRep_Builder.hxx>
 #include <StlAPI_Reader.hxx>
 #include <StlAPI_Writer.hxx>
+#include <BRepBndLib.hxx>
+#include <Bnd_Box.hxx>
+#include <Graphic3d_ClipPlane.hxx>
+#include <gp_Pln.hxx>
 
 #include <cstdio>
 #include <cstring>
@@ -299,6 +303,84 @@ void OcctViewer::getSelectedShapes(NCollection_List<TopoDS_Shape>& outList) {
         TopoDS_Shape s = context_->SelectedShape();
         if (!s.IsNull()) outList.Append(s);
     }
+}
+
+// ─── Clip / section planes ─────────────────────────────────────────────────
+
+void OcctViewer::addClipPlane(int id, const gp_Pln& plane) {
+    if (view_.IsNull()) return;
+    Handle(Graphic3d_ClipPlane) clip = new Graphic3d_ClipPlane(plane);
+    clip->SetOn(true);
+    clip->SetCapping(true);
+    clip->CappingAspect()->ChangeFrontMaterial().SetTransparency(1.0f);
+    view_->AddClipPlane(clip);
+    clipPlanes_.Bind(id, clip);
+    view_->Redraw();
+}
+
+void OcctViewer::removeClipPlane(int id) {
+    if (view_.IsNull()) return;
+    Handle(Graphic3d_ClipPlane) clip;
+    if (clipPlanes_.Find(id, clip)) {
+        clip->SetOn(false);
+        view_->RemoveClipPlane(clip);
+        clipPlanes_.UnBind(id);
+        view_->Redraw();
+    }
+}
+
+void OcctViewer::setClipPlaneEquation(int id, const gp_Pln& plane) {
+    Handle(Graphic3d_ClipPlane) clip;
+    if (clipPlanes_.Find(id, clip)) {
+        clip->SetEquation(plane);
+        view_->Redraw();
+    }
+}
+
+void OcctViewer::setClipPlaneOn(int id, bool on) {
+    Handle(Graphic3d_ClipPlane) clip;
+    if (clipPlanes_.Find(id, clip)) {
+        clip->SetOn(on);
+        view_->Redraw();
+    }
+}
+
+void OcctViewer::setClipPlaneCapping(int id, bool enable, Quantity_Color color, float alpha) {
+    Handle(Graphic3d_ClipPlane) clip;
+    if (clipPlanes_.Find(id, clip)) {
+        clip->SetCapping(enable);
+        clip->SetCappingColor(color);
+        if (alpha > 0.0f)
+            clip->CappingAspect()->ChangeFrontMaterial().SetTransparency(alpha);
+        view_->Redraw();
+    }
+}
+
+bool OcctViewer::hasClipPlane(int id) const {
+    return clipPlanes_.IsBound(id);
+}
+
+void OcctViewer::getBoundingBox(double* xmin, double* ymin, double* zmin,
+                                 double* xmax, double* ymax, double* zmax) const {
+    if (context_.IsNull()) {
+        *xmin = *ymin = *zmin = 0;
+        *xmax = *ymax = *zmax = 100;
+        return;
+    }
+    Bnd_Box box;
+    NCollection_List<Handle(AIS_InteractiveObject)> objs;
+    context_->DisplayedObjects(objs);
+    for (auto& obj : objs) {
+        Handle(AIS_Shape) aisShape = Handle(AIS_Shape)::DownCast(obj);
+        if (!aisShape.IsNull())
+            BRepBndLib::Add(aisShape->Shape(), box);
+    }
+    if (box.IsVoid()) {
+        *xmin = *ymin = *zmin = 0;
+        *xmax = *ymax = *zmax = 100;
+        return;
+    }
+    box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
 }
 
 // ─── File dialogs ─────────────────────────────────────────────────────────
