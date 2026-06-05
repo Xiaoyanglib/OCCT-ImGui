@@ -71,8 +71,8 @@ private:
     };
 
     void drawObjectPanel();
+    void drawOverlay() override;
     void updateClipPlane();
-    void updateClipFrame();
     void onClipDrag(float dx, float dy);
     Handle(AIS_Shape) makeColoredShape(const TopoDS_Shape& shape,
                                        float r, float g, float b,
@@ -89,7 +89,6 @@ private:
     float clipPos_   = 0.0f;
     gp_Pnt clipCenter_;
     gp_Dir clipNormal_, clipDx_, clipDy_;
-    std::vector<Handle(AIS_Shape)> clipFrame_;
     static constexpr int kSectionPlaneId = 999;
 };
 

@@ -43,6 +43,7 @@ protected:
     virtual void drawViewerPanel();
     virtual void drawStatusBar();
     virtual void drawRubberBand();
+    virtual void drawOverlay();
     virtual void onImport();
     virtual void onExport();
     virtual void onImportFile(const char* path);

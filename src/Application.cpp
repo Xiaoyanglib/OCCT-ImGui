@@ -458,6 +458,7 @@ void Application::mainLoop() {
 
         preFrame();
         viewer_->redraw();
+        drawOverlay();
         glfwMakeContextCurrent(window_);
 
         endFrame();
@@ -594,4 +595,5 @@ void Application::postFrame() {
         pendingRectSelect_ = false;
     }
 }
+void Application::drawOverlay() {}
 void Application::shutdown() {}
