@@ -43,7 +43,6 @@ public:
 protected:
     void init() override;
     void drawGui() override;
-    void drawToolPanel() override;
     void preFrame() override;
     void postFrame() override;
     void onImport() override;

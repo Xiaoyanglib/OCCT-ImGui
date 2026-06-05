@@ -46,7 +46,6 @@ void Application::glfwKeyCallback(GLFWwindow* window, int key, int scancode, int
         switch (key) {
         case GLFW_KEY_F7:  g_app->showViewerPanel_ = !g_app->showViewerPanel_; break;
         case GLFW_KEY_F8:  g_app->showObjectPanel_  = !g_app->showObjectPanel_; break;
-        case GLFW_KEY_F10: g_app->showTool_          = !g_app->showTool_; break;
         case GLFW_KEY_F:
             g_app->viewer()->fitAll();
             break;
@@ -238,7 +237,6 @@ void Application::initWindow() {
     }
 
     glfwMakeContextCurrent(window_);
-    glfwMaximizeWindow(window_);
     glfwSwapInterval(1);
 
     glfwSetKeyCallback(window_, glfwKeyCallback);
@@ -373,27 +371,6 @@ void Application::applyStyle() {
     set(ImGuiCol_PlotHistogram,      0.24f, 0.56f, 0.42f, 0.80f);
 }
 
-void Application::drawMenuBar() {
-    if (ImGui::BeginMainMenuBar()) {
-        if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("Import...",  "Cmd+I")) onImport();
-            if (ImGui::MenuItem("Export...",  "Cmd+E")) onExport();
-            ImGui::Separator();
-            if (ImGui::MenuItem("Quit", "Cmd+Q"))
-                glfwSetWindowShouldClose(window_, GLFW_TRUE);
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("View")) {
-            ImGui::MenuItem("Objects",   "F8", &showObjectPanel_);
-            ImGui::MenuItem("Viewer",    "F7", &showViewerPanel_);
-            ImGui::Separator();
-            ImGui::MenuItem("Tool","F10", &showTool_);
-            ImGui::EndMenu();
-        }
-        ImGui::EndMainMenuBar();
-    }
-}
-
 void Application::drawRubberBand() {
     if (!selecting_) return;
 
@@ -431,7 +408,7 @@ void Application::drawStatusBar() {
     float fps = ImGui::GetIO().Framerate;
     ImGui::Text("FPS: %.0f", fps);
     ImGui::SameLine(ImGui::GetContentRegionAvail().x - 200);
-    ImGui::TextDisabled("F7:Viewer  F8:Objects  F10:Tool  F:FitAll");
+    ImGui::TextDisabled("F7:Viewer  F8:Objects  F:FitAll");
 
     ImGui::End();
 }
@@ -441,16 +418,12 @@ void Application::setupDockLayout(ImGuiID dockspaceId) {
     ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
     ImGui::DockBuilderSetNodeSize(dockspaceId, ImGui::GetMainViewport()->Size);
 
-    ImGuiID dockRight, dockLeft;
-    ImGui::DockBuilderSplitNode(dockspaceId, ImGuiDir_Right, 0.22f, &dockRight, &dockLeft);
-
     ImGuiID dockBottom, dockCenter;
-    ImGui::DockBuilderSplitNode(dockLeft, ImGuiDir_Down, 0.25f, &dockBottom, &dockCenter);
+    ImGui::DockBuilderSplitNode(dockspaceId, ImGuiDir_Down, 0.25f, &dockBottom, &dockCenter);
 
     ImGuiID dockObjects, dock3D;
     ImGui::DockBuilderSplitNode(dockCenter, ImGuiDir_Left, 0.18f, &dockObjects, &dock3D);
 
-    ImGui::DockBuilderDockWindow("Tool", dockRight);
     ImGui::DockBuilderDockWindow("Objects",         dockObjects);
     ImGui::DockBuilderDockWindow("Viewer",          dockBottom);
 
@@ -472,7 +445,6 @@ void Application::mainLoop() {
 
         drawDockSpace();
         drawGui();
-        if (showTool_) drawToolPanel();
         drawStatusBar();
         drawRubberBand();
 
@@ -559,7 +531,6 @@ void Application::drawDockSpace() {
             ImGui::MenuItem("Viewer",    "F7", &showViewerPanel_);
             ImGui::MenuItem("Objects",   "F8", &showObjectPanel_);
             ImGui::Separator();
-            ImGui::MenuItem("Tool","F10", &showTool_);
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
@@ -607,12 +578,6 @@ void Application::drawViewerPanel() {
 
     ImGui::End();
 }
-void Application::drawToolPanel() {
-    ImGui::Begin("Tool", &showTool_);
-    ImGui::TextUnformatted("hello imgui");
-    ImGui::End();
-}
-
 void Application::preFrame() {}
 void Application::onImport() {}
 void Application::onExport() {}

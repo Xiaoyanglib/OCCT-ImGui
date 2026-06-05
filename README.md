@@ -67,7 +67,18 @@ Use pre-built binaries from [OCCT Releases](https://github.com/Open-Cascade-SAS/
 
 ### Configure & Build
 
-Set `OpenCASCADE_DIR` to the directory containing `OpenCASCADEConfig.cmake` (typically `<occt-install>/lib/cmake/opencascade`), then follow the standard CMake build process.
+```bash
+# Clone and initialize submodules
+git clone https://github.com/Xiaoyanglib/OCCT-ImGui.git
+cd OCCT-ImGui
+git submodule update --init --recursive
+
+# Configure and build
+cmake -B build -S . -DOpenCASCADE_DIR="<occt-install>/lib/cmake/opencascade"
+cmake --build build
+```
+
+Set `OpenCASCADE_DIR` to the directory containing `OpenCASCADEConfig.cmake` (typically `<occt-install>/lib/cmake/opencascade`).
 
 ## 🎮 Controls
 

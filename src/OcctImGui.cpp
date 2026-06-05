@@ -342,18 +342,33 @@ void Viewer::drawObjectPanel() {
         ImGui::EndPopup();
     }
 
+    // ── Tool ──
     ImGui::Spacing();
-    ImGui::Text("Add Primitive");
+    ImGui::Text("Tool");
     ImGui::Separator();
 
-    if (ImGui::Button("+ Box",      ImVec2(-1, 0))) addShape(BRepPrimAPI_MakeBox(40, 40, 40).Shape(), 0.30f, 0.60f, 0.50f, "Box");
-    if (ImGui::Button("+ Sphere",   ImVec2(-1, 0))) addShape(BRepPrimAPI_MakeSphere(25).Shape(),     0.40f, 0.80f, 0.60f, "Sphere");
-    if (ImGui::Button("+ Cylinder", ImVec2(-1, 0))) addShape(BRepPrimAPI_MakeCylinder(18, 50).Shape(), 0.27f, 0.50f, 0.68f, "Cylinder");
+    if (ImGui::Checkbox("Clipping", &sectionOn_))
+        pendingActions_.push_back([this](OcctViewer*) { updateClipPlane(); });
+
+    if (sectionOn_) {
+        if (ImGui::Checkbox("Edit Clip", &clipEditOn_))
+            pendingActions_.push_back([this](OcctViewer*) { updateClipPlane(); });
+
+        if (clipEditOn_) {
+            OcctViewer* v = viewer();
+            double xmin, ymin, zmin, xmax, ymax, zmax;
+            v->getBoundingBox(&xmin, &ymin, &zmin, &xmax, &ymax, &zmax);
+            double diag = sqrt((xmax-xmin)*(xmax-xmin) + (ymax-ymin)*(ymax-ymin) + (zmax-zmin)*(zmax-zmin));
+            float range = (float)(diag * 0.8);
+            if (ImGui::SliderFloat("Position", &clipPos_, -range, range))
+                pendingActions_.push_back([this](OcctViewer*) { updateClipPlane(); });
+        }
+    }
 
     ImGui::End();
 }
 
-// ─── Tool Panel (section / clip) ──────────────────────────────────────────
+// ─── Section / clip plane ─────────────────────────────────────────────────
 
 void Viewer::updateClipPlane() {
     OcctViewer* v = viewer();
@@ -452,35 +467,6 @@ void Viewer::updateClipFrame() {
         w2.Add(BRepBuilderAPI_MakeEdge(pt(-thin, w), pt(-thin, -w)));
         addAIS(BRepBuilderAPI_MakeFace(w2.Wire()));
     }
-}
-
-void Viewer::drawToolPanel() {
-    ImGui::Begin("Tool", &showTool_);
-
-    ImGui::Text("Section View");
-    ImGui::Separator();
-
-    // "Clipping" checkbox (geobox: Checkbox("Clipping", &clipping_))
-    if (ImGui::Checkbox("Clipping", &sectionOn_))
-        pendingActions_.push_back([this](OcctViewer*) { updateClipPlane(); });
-
-    if (!sectionOn_) { ImGui::End(); return; }
-
-    // "edit clip" checkbox (geobox: Checkbox("edit clip", &edit_clip_))
-    if (ImGui::Checkbox("Edit Clip", &clipEditOn_))
-        pendingActions_.push_back([this](OcctViewer*) { updateClipPlane(); });
-
-    if (clipEditOn_) {
-        OcctViewer* v = viewer();
-        double xmin, ymin, zmin, xmax, ymax, zmax;
-        v->getBoundingBox(&xmin, &ymin, &zmin, &xmax, &ymax, &zmax);
-        double diag = sqrt((xmax-xmin)*(xmax-xmin) + (ymax-ymin)*(ymax-ymin) + (zmax-zmin)*(zmax-zmin));
-        float range = (float)(diag * 0.8);
-        if (ImGui::SliderFloat("Position", &clipPos_, -range, range))
-            pendingActions_.push_back([this](OcctViewer*) { updateClipPlane(); });
-    }
-
-    ImGui::End();
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

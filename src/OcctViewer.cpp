@@ -104,8 +104,6 @@ OcctViewer::OcctViewer(GLFWwindow* glfwWindow)
 
     view_->SetBackgroundColor(Quantity_NOC_WHITE);
     view_->MustBeResized();
-    view_->TriedronDisplay(Aspect_TOTP_LEFT_LOWER, Quantity_NOC_BLACK, 0.08);
-
     view_->Camera()->SetEyeAndCenter(gp_Pnt(200, 150, 200), gp_Pnt(0, 0, 0));
     view_->Camera()->SetUp(gp_Dir(0, 0, 1));
 }
@@ -328,7 +326,7 @@ void OcctViewer::setCameraFromViewMatrix(const float viewMat[16]) {
     // Up direction: column1
     gp_Dir up(viewMat[1], viewMat[5], viewMat[9]);
 
-    Standard_Real dist = cam->Distance();
+    double dist = cam->Distance();
     gp_Pnt center(eye.X() + forward.X() * dist,
                   eye.Y() + forward.Y() * dist,
                   eye.Z() + forward.Z() * dist);
