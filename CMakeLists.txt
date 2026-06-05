@@ -63,6 +63,12 @@ target_link_libraries(OcctImGui PUBLIC
   OpenCASCADE::OpenCASCADE
 )
 
+if(WIN32)
+  target_include_directories(OcctImGui PUBLIC
+    ${CMAKE_SOURCE_DIR}/third_party/glew/include)
+  target_link_libraries(OcctImGui PUBLIC glew)
+endif()
+
 if(APPLE)
   target_link_libraries(OcctImGui PUBLIC
     "-framework OpenGL"
