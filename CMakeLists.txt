@@ -3,7 +3,7 @@
 ###############################################################################
 cmake_minimum_required(VERSION 3.20)
 
-project(occt-imgui VERSION 0.1.0 LANGUAGES CXX)
+project(occt-imgui VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -52,6 +52,9 @@ target_compile_definitions(OcctImGui PRIVATE
   FONTS_DIR="${CMAKE_SOURCE_DIR}/src/fonts"
 )
 
+add_library(glad STATIC ${CMAKE_SOURCE_DIR}/third_party/glad/src/glad.c)
+target_include_directories(glad PUBLIC ${CMAKE_SOURCE_DIR}/third_party/glad/include)
+
 target_include_directories(OcctImGui PUBLIC
   ${CMAKE_SOURCE_DIR}/src
   ${CMAKE_SOURCE_DIR}/third_party/imoguizmo
@@ -60,6 +63,7 @@ target_include_directories(OcctImGui PUBLIC
 target_link_libraries(OcctImGui PUBLIC
   imgui
   glfw
+  glad
   OpenCASCADE::OpenCASCADE
 )
 
