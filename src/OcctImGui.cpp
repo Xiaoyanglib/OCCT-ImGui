@@ -33,7 +33,36 @@
 #define GL_SILENCE_DEPRECATION
 #include <OpenGL/gl3.h>
 #elif defined(_WIN32)
-#include <GL/glew.h>
+#include <windows.h>
+#include <GL/gl.h>
+
+// Manual GL3 entry points loaded via wglGetProcAddress at first use
+#define GLLOAD(fn) static decltype(fn)* fn
+GLLOAD(glCreateShader);
+GLLOAD(glShaderSource); GLLOAD(glCompileShader);
+GLLOAD(glCreateProgram); GLLOAD(glAttachShader);
+GLLOAD(glLinkProgram); GLLOAD(glDeleteShader);
+GLLOAD(glGetUniformLocation); GLLOAD(glUseProgram);
+GLLOAD(glUniformMatrix4fv); GLLOAD(glUniform3f);
+GLLOAD(glGenVertexArrays); GLLOAD(glBindVertexArray);
+GLLOAD(glGenBuffers); GLLOAD(glBindBuffer);
+GLLOAD(glBufferData); GLLOAD(glEnableVertexAttribArray);
+GLLOAD(glVertexAttribPointer);
+#undef GLLOAD
+
+static void loadGL3() {
+    static bool done = false;
+    if (done) return; done = true;
+    #define L(fn) fn = (decltype(fn))wglGetProcAddress(#fn)
+    L(glCreateShader); L(glShaderSource); L(glCompileShader);
+    L(glCreateProgram); L(glAttachShader); L(glLinkProgram);
+    L(glDeleteShader); L(glGetUniformLocation); L(glUseProgram);
+    L(glUniformMatrix4fv); L(glUniform3f);
+    L(glGenVertexArrays); L(glBindVertexArray);
+    L(glGenBuffers); L(glBindBuffer); L(glBufferData);
+    L(glEnableVertexAttribArray); L(glVertexAttribPointer);
+    #undef L
+}
 #endif
 
 #include <BRepPrimAPI_MakeBox.hxx>
@@ -409,6 +438,10 @@ void Viewer::updateClipPlane() {
 
 void Viewer::drawOverlay() {
     if (!sectionOn_) return;
+
+#ifdef _WIN32
+    loadGL3();
+#endif
 
     // ── Lazy-init GL resources ──────────────────────────────────────────
     static GLuint prog = 0, vao = 0, vbo = 0;
