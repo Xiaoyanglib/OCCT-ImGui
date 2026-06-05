@@ -51,7 +51,7 @@ OCCT-ImGui/
 | GLFW | 3.3.x | Window + OpenGL context |
 | CMake | 3.20+ | Build system |
 
-ImGui and GLFW are fetched automatically via `FetchContent`. OpenCASCADE must be installed separately.
+Dependencies (GLFW, Dear ImGui, ImGuizmo, Google Test) are included as git submodules. OpenCASCADE must be installed separately.
 
 ## 🔨 Build
 
@@ -68,10 +68,9 @@ Use pre-built binaries from [OCCT Releases](https://github.com/Open-Cascade-SAS/
 ### Configure & Build
 
 ```bash
-# Clone and initialize submodules
-git clone https://github.com/Xiaoyanglib/OCCT-ImGui.git
+# Clone with all submodules
+git clone --recurse-submodules https://github.com/Xiaoyanglib/OCCT-ImGui.git
 cd OCCT-ImGui
-git submodule update --init --recursive
 
 # Configure and build
 cmake -B build -S . -DOpenCASCADE_DIR="<occt-install>/lib/cmake/opencascade"

@@ -1,14 +1,5 @@
 if(NOT TARGET imgui)
-  include(FetchContent)
-
-  cmake_policy(SET CMP0169 OLD)
-  FetchContent_Declare(
-    imgui
-    GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG        docking
-    SOURCE_DIR     ${CMAKE_SOURCE_DIR}/third_party/imgui
-  )
-  FetchContent_Populate(imgui)
+  set(imgui_SOURCE_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui)
 
   add_library(imgui STATIC
     ${imgui_SOURCE_DIR}/imgui.cpp
