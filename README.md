@@ -25,7 +25,7 @@ OCCT-ImGui/
 │   ├── GLFW.cmake          # GLFW via FetchContent
 │   ├── ImGui.cmake         # ImGui docking branch via FetchContent
 │   └── OpenCASCADE.cmake   # Finds installed OCCT
-├── deps/                   # Fetched dependencies (gitignored, populated at build)
+├── third_party/            # Fetched dependencies (gitignored, populated at build)
 │   ├── glfw/
 │   └── imgui/
 ├── tests/

@@ -6,7 +6,7 @@ if(NOT TARGET imgui)
     imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
     GIT_TAG        docking
-    SOURCE_DIR     ${CMAKE_SOURCE_DIR}/deps/imgui
+    SOURCE_DIR     ${CMAKE_SOURCE_DIR}/third_party/imgui
   )
   FetchContent_Populate(imgui)
 

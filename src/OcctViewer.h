@@ -51,6 +51,10 @@ public:
     void pan(int x, int y);
     void fitAll();
 
+    // Camera matrix helpers for orientation gizmo
+    void getCameraMatrices(float viewMat[16], float projMat[16]) const;
+    void setCameraFromViewMatrix(const float viewMat[16]);
+
     // Scene
     void displayShape(const Handle(AIS_Shape)& shape, bool update = true);
     void removeShape(const Handle(AIS_Shape)& shape, bool update = true);

@@ -5,7 +5,7 @@ if(NOT TARGET glfw)
     glfw
     GIT_REPOSITORY https://github.com/glfw/glfw.git
     GIT_TAG        3.3.8
-    SOURCE_DIR     ${CMAKE_SOURCE_DIR}/deps/glfw
+    SOURCE_DIR     ${CMAKE_SOURCE_DIR}/third_party/glfw
   )
 
   set(GLFW_BUILD_DOCS     OFF CACHE BOOL "" FORCE)

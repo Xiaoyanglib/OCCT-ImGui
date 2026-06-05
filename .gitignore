@@ -1,4 +1,6 @@
 .DS_Store
 build/
-deps/
+third_party/*
+!third_party/imoguizmo/
+!third_party/imoguizmo/**
 .idea/

@@ -54,6 +54,7 @@ target_compile_definitions(OcctImGui PRIVATE
 
 target_include_directories(OcctImGui PUBLIC
   ${CMAKE_SOURCE_DIR}/src
+  ${CMAKE_SOURCE_DIR}/third_party/imoguizmo
 )
 
 target_link_libraries(OcctImGui PUBLIC
