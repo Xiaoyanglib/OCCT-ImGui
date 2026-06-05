@@ -83,7 +83,7 @@ private:
     std::vector<std::function<void(OcctViewer*)>> pendingActions_;
     int nextId_ = 0;
 
-    // Section plane state (like geobox: clip_translation_ + clip_rotation_)
+    // Section plane state
     bool sectionOn_  = false;
     bool clipEditOn_ = false;
     float clipPos_   = 0.0f;
