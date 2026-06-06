@@ -18,25 +18,29 @@ A lightweight CAD viewer built on [OpenCASCADE](https://dev.opencascade.org/) (O
 
 ```
 OCCT-ImGui/
-├── CMakeLists.txt          # CMake build configuration
+├── CMakeLists.txt              # CMake build configuration
 ├── README.md
-├── cmake/                  # CMake dependency modules
-│   ├── Dependencies.cmake  # Top-level dependency loader
-│   ├── GLFW.cmake          # GLFW via FetchContent
-│   ├── ImGui.cmake         # ImGui docking branch via FetchContent
-│   └── OpenCASCADE.cmake   # Finds installed OCCT
-├── third_party/            # Fetched dependencies (gitignored, populated at build)
-│   ├── glfw/
-│   └── imgui/
+├── cmake/                      # CMake dependency modules
+│   ├── Dependencies.cmake      # Top-level dependency loader
+│   ├── GLFW.cmake              # GLFW via add_subdirectory
+│   ├── ImGui.cmake             # ImGui (docking branch) via add_subdirectory
+│   └── OpenCASCADE.cmake       # Finds installed OCCT
+├── third_party/                # Git submodules + glad
+│   ├── glfw/                   #   glfw 3.3.8 (submodule)
+│   ├── imgui/                  #   imgui docking (submodule)
+│   ├── imoguizmo/              #   imoguizmo (submodule)
+│   ├── googletest/             #   googletest v1.14.0 (submodule)
+│   └── glad/                   #   glad GL 3.2 core (generated source)
 ├── tests/
-│   ├── CMakeLists.txt          # GTest via FetchContent
+│   ├── CMakeLists.txt          # GTest via add_subdirectory
 │   └── test_occt_imgui.cpp     # Viewer API tests
 └── src/
-    ├── main.cpp                # DemoApp: demo shapes + import/export dialog
+    ├── main.cpp                # DemoApp: demo shapes
     ├── Application.cpp/.h      # Framework: window, ImGui, docking, style,
     │                           #   menu/status bars, Viewer panel, rect select
-    ├── OcctImGui.cpp/.h        # Library: shape management, Objects panel, import
-    ├── OcctViewer.cpp/.h       # OCCT 3D viewer: camera, selection, import/export
+    ├── OcctImGui.cpp/.h        # Library: shape mgmt, Objects panel, section,
+    │                           #   import/export, orientation gizmo, GL overlay
+    ├── OcctViewer.cpp/.h       # OCCT 3D viewer: camera, selection, clip planes
     ├── OcctWindow.cpp/.h       # GLFW-to-OCCT window bridge
     ├── OcctImConfig.h          # ImGui user config header
     └── fonts/                  # Roboto font files (SemiBold, Regular, etc.)
@@ -49,9 +53,12 @@ OCCT-ImGui/
 | OpenCASCADE | 8.0+ | CAD kernel |
 | Dear ImGui | docking branch | UI rendering |
 | GLFW | 3.3.x | Window + OpenGL context |
+| ImGuizmo | latest | Orientation gizmo |
+| Google Test | 1.14.x | Unit testing |
+| glad | GL 3.2 core | OpenGL loader |
 | CMake | 3.20+ | Build system |
 
-Dependencies (GLFW, Dear ImGui, ImGuizmo, Google Test) are included as git submodules. OpenCASCADE must be installed separately.
+GLFW, Dear ImGui, ImGuizmo, and Google Test are included as git submodules. glad source is committed directly. OpenCASCADE must be installed separately.
 
 ## 🔨 Build
 
