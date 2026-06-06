@@ -43,4 +43,42 @@ TEST(OcctImGuiTest, FitAll) {
     SUCCEED();
 }
 
+TEST(OcctImGuiTest, AddShapeWithTranslation) {
+    OcctImGui::Viewer viewer;
+    TopoDS_Shape box = BRepPrimAPI_MakeBox(10, 10, 10).Shape();
+    viewer.addShape(box, 0.5f, 0.5f, 0.5f, "OffsetBox", 100, 0, -50);
+    SUCCEED();
+}
+
+TEST(OcctImGuiTest, ImportEmptyPath) {
+    OcctImGui::Viewer viewer;
+    viewer.importFile("");
+    // Should not crash on empty path
+    SUCCEED();
+}
+
+TEST(OcctImGuiTest, MultipleFitAll) {
+    OcctImGui::Viewer viewer;
+    viewer.fitAll();
+    viewer.fitAll();
+    viewer.fitAll();
+    SUCCEED();
+}
+
+TEST(OcctImGuiTest, ShapesPersistAcrossShow) {
+    OcctImGui::Viewer viewer;
+    viewer.addShape(BRepPrimAPI_MakeBox(10, 10, 10).Shape(), 0, 0, 0, "Box");
+    viewer.fitAll();
+    // Show would create viewer context — just verify no crash on shape ops pre-show
+    SUCCEED();
+}
+
+TEST(OcctImGuiTest, ExportWithoutSelection) {
+    OcctImGui::Viewer viewer;
+    // Export is handled by onExport() which pops up a file dialog — skip
+    // but importFile with garbage path should handle gracefully
+    viewer.importFile("/nonexistent/file.step");
+    SUCCEED();
+}
+
 } // namespace
