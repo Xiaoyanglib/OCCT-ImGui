@@ -106,9 +106,11 @@ Built with and inspired by these excellent projects:
 - [OpenCASCADE](https://dev.opencascade.org/) — CAD kernel
 - [Dear ImGui](https://github.com/ocornut/imgui) — immediate-mode GUI
 - [GLFW](https://www.glfw.org/) — cross-platform windowing
-- [Geogram](https://github.com/BrunoLevy/geogram) — reference for ImGui + 3D viewer integration
-- [OcctImgui](https://github.com/eryar/OcctImgui) — reference OCCT + ImGui integration
-- [OCC-QT-Demo](https://github.com/ajune-wang/OCC-QT-Demo) — reference for OCCT application patterns
+- [ImGuizmo](https://github.com/fknfilewalker/imoguizmo) — orientation gizmo
+- [glad](https://glad.dav1d.de/) — OpenGL loader
+- [Geogram](https://github.com/BrunoLevy/geogram) — section view and dock layout reference
+- [OcctImGui](https://github.com/eryar/OcctImgui) — OCCT + ImGui integration reference
+- [OCC-QT-Demo](https://github.com/ajune-wang/OCC-QT-Demo) — OCCT application patterns reference
 
 ## 📄 License
 
