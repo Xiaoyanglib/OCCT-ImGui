@@ -88,6 +88,9 @@ public:
     void selectRectangle(int x1, int y1, int x2, int y2);
     void shiftSelectRectangle(int x1, int y1, int x2, int y2);
     void clearSelection();
+    void setSelectionMode(int mode);
+    void setBackgroundColor(float r, float g, float b);
+    void setOrthographic(bool ortho);
 
     Handle(V3d_View) view() const { return view_; }
     Handle(V3d_Viewer) viewer() const { return viewer_; }

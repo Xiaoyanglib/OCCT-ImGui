@@ -557,12 +557,6 @@ void Application::drawGui() {}
 void Application::drawViewerPanel() {
     ImGui::Begin("Viewer", &showViewerPanel_);
 
-    ImGui::Text("Display");
-    ImGui::Separator();
-    ImGui::BulletText("Background: White");
-    ImGui::BulletText("Projection: Perspective");
-
-    ImGui::Spacing();
     ImGui::Text("Mouse Controls");
     ImGui::Separator();
     ImGui::BulletText("Left drag:   Pan");

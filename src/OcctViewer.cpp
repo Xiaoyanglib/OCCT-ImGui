@@ -67,6 +67,7 @@
 #include <StlAPI_Writer.hxx>
 #include <BRepBndLib.hxx>
 #include <Bnd_Box.hxx>
+#include <Graphic3d_Camera.hxx>
 #include <Graphic3d_ClipPlane.hxx>
 #include <gp_Pln.hxx>
 
@@ -230,6 +231,28 @@ void OcctViewer::shiftSelectRectangle(int x1, int y1, int x2, int y2) {
 void OcctViewer::clearSelection() {
     if (context_.IsNull()) return;
     context_->ClearSelected(true);
+}
+
+void OcctViewer::setSelectionMode(int mode) {
+    if (context_.IsNull()) return;
+    context_->Deactivate();
+    context_->Activate(mode);
+}
+
+void OcctViewer::setBackgroundColor(float r, float g, float b) {
+    if (view_.IsNull()) return;
+    view_->SetBackgroundColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
+    view_->Redraw();
+}
+
+void OcctViewer::setOrthographic(bool ortho) {
+    if (view_.IsNull()) return;
+    auto cam = view_->Camera();
+    if (ortho)
+        cam->SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+    else
+        cam->SetProjectionType(Graphic3d_Camera::Projection_Perspective);
+    view_->Redraw();
 }
 
 // ─── Camera matrix helpers ────────────────────────────────────────────

@@ -25,8 +25,21 @@
 #include "Application.h"
 #include <AIS_Shape.hxx>
 #include <TopoDS_Shape.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopoDS.hxx>
 
 namespace OcctImGui {
+
+struct FaceEntry {
+    Handle(AIS_Shape) aisFace;
+    int   id = 0;
+    float color[3] = {0.5f, 0.7f, 0.5f};
+    bool  useCustomColor = false;
+    bool  visible = true;
+    FaceEntry(const Handle(AIS_Shape)& f, int i, float r, float g, float b)
+        : aisFace(f), id(i), color{r, g, b} {}
+};
 
 class Viewer : public Application {
 public:
@@ -54,8 +67,10 @@ private:
         Handle(AIS_Shape) aisShape;
         std::string name;
         bool visible = true;
+        bool facesExpanded = false;
         float color[3] = {0.5f, 0.7f, 0.5f};
         double tx = 0, ty = 0, tz = 0;
+        std::vector<FaceEntry> faces;
         ShapeEntry(const Handle(AIS_Shape)& s, const std::string& n, bool v,
                    float cr, float cg, float cb,
                    double px = 0, double py = 0, double pz = 0)
@@ -69,6 +84,10 @@ private:
         std::string name;
         double tx = 0, ty = 0, tz = 0;
     };
+
+    void extractFaces(ShapeEntry& entry, const TopoDS_Shape& shape,
+                      float r, float g, float b,
+                      double tx = 0, double ty = 0, double tz = 0);
 
     void drawObjectPanel();
     void drawOverlay() override;

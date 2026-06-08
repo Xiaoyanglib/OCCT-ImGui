@@ -24,6 +24,7 @@
 
 #include <memory>
 
+#include <AIS_Shape.hxx>
 #include <GLFW/glfw3.h>
 
 #include "imgui.h"
@@ -59,6 +60,9 @@ protected:
 
     bool showViewerPanel_ = true;
     bool showObjectPanel_ = true;
+    int  selectionMode_   = AIS_Shape::SelectionMode(TopAbs_SHAPE);
+    float bgColor_[3]     = {1.0f, 1.0f, 1.0f};
+    bool  orthographic_   = true;
     bool guiWantsMouse_   = false;
     bool firstFrame_      = true;
     bool panning_         = false;   // left-drag → pan
