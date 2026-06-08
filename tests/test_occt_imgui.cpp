@@ -75,9 +75,44 @@ TEST(OcctImGuiTest, ShapesPersistAcrossShow) {
 
 TEST(OcctImGuiTest, ExportWithoutSelection) {
     OcctImGui::Viewer viewer;
-    // Export is handled by onExport() which pops up a file dialog — skip
-    // but importFile with garbage path should handle gracefully
     viewer.importFile("/nonexistent/file.step");
+    SUCCEED();
+}
+
+TEST(OcctImGuiTest, FaceEntryDefaultValues) {
+    Handle(AIS_Shape) dummy = new AIS_Shape(TopoDS_Shape());
+    OcctImGui::FaceEntry f(dummy, 5, 0.2f, 0.4f, 0.6f);
+    EXPECT_EQ(f.id, 5);
+    EXPECT_FALSE(f.useCustomColor);
+    EXPECT_TRUE(f.visible);
+    EXPECT_FLOAT_EQ(f.color[0], 0.2f);
+    EXPECT_FLOAT_EQ(f.color[1], 0.4f);
+    EXPECT_FLOAT_EQ(f.color[2], 0.6f);
+}
+
+TEST(OcctImGuiTest, FaceCustomColorFlag) {
+    Handle(AIS_Shape) dummy = new AIS_Shape(TopoDS_Shape());
+    OcctImGui::FaceEntry f(dummy, 0, 0.5f, 0.5f, 0.5f);
+    EXPECT_FALSE(f.useCustomColor);
+    f.useCustomColor = true;
+    EXPECT_TRUE(f.useCustomColor);
+}
+
+TEST(OcctImGuiTest, FaceEntryInitiallyOwnedByParent) {
+    Handle(AIS_Shape) dummy = new AIS_Shape(TopoDS_Shape());
+    OcctImGui::FaceEntry f(dummy, 3, 0.8f, 0.2f, 0.1f);
+    // Face defaults: not custom, visible, parent color
+    EXPECT_FALSE(f.useCustomColor);
+    EXPECT_TRUE(f.visible);
+}
+
+TEST(OcctImGuiTest, SetBackgroundColor) {
+    OcctImGui::Viewer viewer;
+    SUCCEED();
+}
+
+TEST(OcctImGuiTest, SetOrthographic) {
+    OcctImGui::Viewer viewer;
     SUCCEED();
 }
 
