@@ -63,13 +63,25 @@ GLFW, Dear ImGui, ImGuizmo, and Google Test are included as git submodules. glad
 
 ### Prerequisites
 
-Install OpenCASCADE 8.0+:
-
-**macOS:**
-Coming soon.
+Install OpenCASCADE (8.0 or later recommended):
 
 **Windows:**
 Use pre-built binaries from [OCCT Releases](https://github.com/Open-Cascade-SAS/OCCT/releases), or build from source using CMake.
+
+**macOS:**
+Use Homebrew (may not be the latest version):
+```bash
+brew install opencascade
+```
+
+**Source build:**
+To build from source instead (replace `V8_0_0` with the desired version tag):
+```bash
+git clone --depth 1 --branch V8_0_0 https://github.com/Open-Cascade-SAS/OCCT.git
+cmake -B build -S OCCT -DCMAKE_INSTALL_PREFIX=./installed
+cmake --build build -j$(sysctl -n hw.logicalcpu)
+cmake --install build
+```
 
 ### Configure & Build
 
@@ -83,7 +95,9 @@ cmake -B build -S . -DOpenCASCADE_DIR="<occt-install>/lib/cmake/opencascade"
 cmake --build build
 ```
 
-Set `OpenCASCADE_DIR` to the directory containing `OpenCASCADEConfig.cmake` (typically `<occt-install>/lib/cmake/opencascade`).
+Set `OpenCASCADE_DIR` to the directory containing `OpenCASCADEConfig.cmake`:
+- **Pre-built binaries (Windows):** `<occt-install>/cmake`
+- **Homebrew (macOS):** `$(brew --prefix opencascade)/lib/cmake/opencascade`
 
 ## 🎮 Controls
 
