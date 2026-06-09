@@ -114,7 +114,11 @@ void Viewer::importFile(const char* path) {
         buf[sizeof(buf) - 1] = '\0';
         auto& entry = shapes_.emplace_back(ais, buf, true, r, g, b);
         extractFaces(entry, shape, r, g, b);
-        if (selectionMode_ == AIS_Shape::SelectionMode(TopAbs_SHAPE))
+        int sm = selectionMode_;
+        bool useModel = (sm == AIS_Shape::SelectionMode(TopAbs_SHAPE) ||
+                         sm == AIS_Shape::SelectionMode(TopAbs_EDGE)   ||
+                         sm == AIS_Shape::SelectionMode(TopAbs_VERTEX));
+        if (useModel)
             v->displayShape(ais);
         else
             for (auto& f : entry.faces) v->displayShape(f.aisFace, false);
@@ -318,9 +322,12 @@ void Viewer::drawObjectPanel() {
             auto shape = entry.aisShape;
             std::vector<Handle(AIS_Shape)> faceShapes;
             for (auto& f : entry.faces) faceShapes.push_back(f.aisFace);
-            bool showModel = (selectionMode_ == AIS_Shape::SelectionMode(TopAbs_SHAPE));
-            pendingActions_.push_back([shape, faceShapes, vis, showModel](OcctViewer* v) {
-                if (showModel) {
+            int sm = selectionMode_;
+            bool useModel = (sm == AIS_Shape::SelectionMode(TopAbs_SHAPE) ||
+                             sm == AIS_Shape::SelectionMode(TopAbs_EDGE)   ||
+                             sm == AIS_Shape::SelectionMode(TopAbs_VERTEX));
+            pendingActions_.push_back([shape, faceShapes, vis, useModel](OcctViewer* v) {
+                if (useModel) {
                     if (vis) v->displayShape(shape, false);
                     else     v->removeShape(shape, false);
                 } else {
@@ -726,9 +733,12 @@ void Viewer::drawOverlay() {
 }
 
 void Viewer::syncShapeDisplay() {
-    bool showModel = (selectionMode_ == AIS_Shape::SelectionMode(TopAbs_SHAPE));
+    int sm = selectionMode_;
+    bool useModel = (sm == AIS_Shape::SelectionMode(TopAbs_SHAPE) ||
+                     sm == AIS_Shape::SelectionMode(TopAbs_EDGE)   ||
+                     sm == AIS_Shape::SelectionMode(TopAbs_VERTEX));
     for (auto& entry : shapes_) {
-        if (showModel) {
+        if (useModel) {
             if (entry.visible) viewer()->displayShape(entry.aisShape, false);
             for (auto& f : entry.faces) viewer()->removeShape(f.aisFace, false);
         } else {
