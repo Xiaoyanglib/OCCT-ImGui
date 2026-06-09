@@ -103,7 +103,6 @@ void Viewer::importFile(const char* path) {
         Handle(Prs3d_ShadingAspect) aspect = new Prs3d_ShadingAspect();
         aspect->SetColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
         ais->Attributes()->SetShadingAspect(aspect);
-        v->displayShape(ais);
         const char* name = strrchr(p.c_str(), '/');
 #ifdef _WIN32
         const char* bs = strrchr(p.c_str(), '\\');
@@ -115,6 +114,10 @@ void Viewer::importFile(const char* path) {
         buf[sizeof(buf) - 1] = '\0';
         auto& entry = shapes_.emplace_back(ais, buf, true, r, g, b);
         extractFaces(entry, shape, r, g, b);
+        if (selectionMode_ == AIS_Shape::SelectionMode(TopAbs_SHAPE))
+            v->displayShape(ais);
+        else
+            for (auto& f : entry.faces) v->displayShape(f.aisFace, false);
         nextId_++;
     });
 }
