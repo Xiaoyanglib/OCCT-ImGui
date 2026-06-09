@@ -115,10 +115,9 @@ void Viewer::importFile(const char* path) {
         auto& entry = shapes_.emplace_back(ais, buf, true, r, g, b);
         extractFaces(entry, shape, r, g, b);
         int sm = selectionMode_;
-        bool useModel = (sm == AIS_Shape::SelectionMode(TopAbs_SHAPE) ||
-                         sm == AIS_Shape::SelectionMode(TopAbs_EDGE)   ||
-                         sm == AIS_Shape::SelectionMode(TopAbs_VERTEX));
-        if (useModel)
+        if (sm == AIS_Shape::SelectionMode(TopAbs_SHAPE) ||
+            sm == AIS_Shape::SelectionMode(TopAbs_EDGE)   ||
+            sm == AIS_Shape::SelectionMode(TopAbs_VERTEX))
             v->displayShape(ais);
         else
             for (auto& f : entry.faces) v->displayShape(f.aisFace, false);
@@ -262,8 +261,8 @@ void Viewer::drawObjectPanel() {
     ImGui::PushItemWidth(-1);
     if (ImGui::Combo("##selmode", &selCur, selModes, 4)) {
         selectionMode_ = selVals[selCur];
-        viewer()->setSelectionMode(selectionMode_);
         syncShapeDisplay();
+        viewer()->setSelectionMode(selectionMode_);
     }
     ImGui::PopItemWidth();
 
