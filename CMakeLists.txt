@@ -51,6 +51,9 @@ add_library(OcctImGui STATIC ${LIB_SOURCES} ${LIB_HEADERS})
 target_compile_definitions(OcctImGui PRIVATE
   FONTS_DIR="${CMAKE_SOURCE_DIR}/src/fonts"
 )
+if(WIN32)
+  target_compile_definitions(OcctImGui PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
+endif()
 
 add_library(glad STATIC ${CMAKE_SOURCE_DIR}/third_party/glad/src/glad.c)
 target_include_directories(glad PUBLIC ${CMAKE_SOURCE_DIR}/third_party/glad/include)

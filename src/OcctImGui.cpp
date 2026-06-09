@@ -488,6 +488,12 @@ void Viewer::drawObjectPanel() {
         ImGui::Text("Remove all %d shapes?", (int)shapes_.size());
         if (ImGui::Button("Yes", ImVec2(80, 0))) {
             for (auto& entry : shapes_) {
+                for (auto& f : entry.faces) {
+                    auto ff = f.aisFace;
+                    pendingActions_.push_back([ff](OcctViewer* v) {
+                        v->removeShape(ff, false);
+                    });
+                }
                 auto shape = entry.aisShape;
                 pendingActions_.push_back([shape](OcctViewer* v) {
                     v->removeShape(shape, true);
