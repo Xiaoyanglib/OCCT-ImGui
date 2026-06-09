@@ -120,6 +120,7 @@ void Viewer::importFile(const char* path) {
             v->displayShape(ais);
         else
             for (auto& f : entry.faces) v->displayShape(f.aisFace, false);
+        v->setSelectionMode(selectionMode_);
         nextId_++;
     });
 }
