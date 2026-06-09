@@ -114,10 +114,9 @@ void Viewer::importFile(const char* path) {
         buf[sizeof(buf) - 1] = '\0';
         auto& entry = shapes_.emplace_back(ais, buf, true, r, g, b);
         extractFaces(entry, shape, r, g, b);
-        int sm = selectionMode_;
-        if (sm == AIS_Shape::SelectionMode(TopAbs_SHAPE) ||
-            sm == AIS_Shape::SelectionMode(TopAbs_EDGE)   ||
-            sm == AIS_Shape::SelectionMode(TopAbs_VERTEX))
+        if (selectionMode_ == AIS_Shape::SelectionMode(TopAbs_SHAPE) ||
+            selectionMode_ == AIS_Shape::SelectionMode(TopAbs_EDGE)   ||
+            selectionMode_ == AIS_Shape::SelectionMode(TopAbs_VERTEX))
             v->displayShape(ais);
         else
             for (auto& f : entry.faces) v->displayShape(f.aisFace, false);
