@@ -34,7 +34,7 @@ namespace OcctImGui {
 struct FaceEntry {
     Handle(AIS_Shape) aisFace;
     int   id = 0;
-    float color[3] = {0.5f, 0.7f, 0.5f};
+    float color[3] = {0.7f, 0.7f, 0.7f};
     bool  useCustomColor = false;
     bool  visible = true;
     FaceEntry(const Handle(AIS_Shape)& f, int i, float r, float g, float b)
@@ -68,7 +68,7 @@ private:
         std::string name;
         bool visible = true;
         bool facesExpanded = false;
-        float color[3] = {0.5f, 0.7f, 0.5f};
+        float color[3] = {0.7f, 0.7f, 0.7f};
         double tx = 0, ty = 0, tz = 0;
         std::vector<FaceEntry> faces;
         ShapeEntry(const Handle(AIS_Shape)& s, const std::string& n, bool v,

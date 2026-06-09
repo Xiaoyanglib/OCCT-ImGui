@@ -322,11 +322,20 @@ void Viewer::drawObjectPanel() {
             });
         }
         ImGui::SameLine();
+        // Rainbow if 2+ faces have different colors
+        bool rainbow = false;
+        if (entry.faces.size() >= 2) {
+            float c0 = entry.faces[0].color[0], c1 = entry.faces[0].color[1], c2 = entry.faces[0].color[2];
+            for (auto& f : entry.faces) {
+                if (f.color[0] != c0 || f.color[1] != c1 || f.color[2] != c2) { rainbow = true; break; }
+            }
+        }
+        ImVec2 swatchPos = ImGui::GetCursorScreenPos();
+        float swatchH = ImGui::GetFrameHeight();
         if (ImGui::ColorEdit3("##color", entry.color,
-            ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel)) {
+            ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoBorder)) {
             float r = entry.color[0], g = entry.color[1], b = entry.color[2];
             auto shape = entry.aisShape;
-            // Update all face colors immediately for UI
             for (auto& f : entry.faces) {
                 f.color[0] = r; f.color[1] = g; f.color[2] = b;
                 f.useCustomColor = false;
@@ -345,6 +354,23 @@ void Viewer::drawObjectPanel() {
                     fs->Redisplay(false);
                 }
             });
+        }
+        if (rainbow) {
+            // Black rounded background (not via PushStyleColor)
+            float r = ImGui::GetStyle().FrameRounding;
+            ImVec2 swatchEnd(swatchPos.x + swatchH, swatchPos.y + swatchH);
+            ImGui::GetWindowDrawList()->AddRectFilled(swatchPos, swatchEnd, IM_COL32(0,0,0,255), r);
+            // Rainbow inset 2px
+            ImU32 mixed[4] = {
+                IM_COL32(0xFF, 0x33, 0x33, 0xFF),
+                IM_COL32(0x33, 0x99, 0xFF, 0xFF),
+                IM_COL32(0x33, 0xCC, 0x33, 0xFF),
+                IM_COL32(0xFF, 0xCC, 0x00, 0xFF),
+            };
+            ImGui::GetWindowDrawList()->AddRectFilledMultiColor(
+                ImVec2(swatchPos.x + 2, swatchPos.y + 2),
+                ImVec2(swatchPos.x + swatchH - 2, swatchPos.y + swatchH - 2),
+                mixed[0], mixed[1], mixed[2], mixed[3]);
         }
         ImGui::SameLine();
         ImGui::TextUnformatted(entry.name.c_str());
@@ -403,6 +429,9 @@ void Viewer::drawObjectPanel() {
                 if (ImGui::ColorEdit3("##fcolor", f.color,
                     ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel)) {
                     f.useCustomColor = true;
+                    entry.color[0] = f.color[0];
+                    entry.color[1] = f.color[1];
+                    entry.color[2] = f.color[2];
                     float fr = f.color[0], fg = f.color[1], fb = f.color[2];
                     pendingActions_.push_back([face = f.aisFace, fr, fg, fb](OcctViewer* v) {
                         Handle(Prs3d_ShadingAspect) a = new Prs3d_ShadingAspect();

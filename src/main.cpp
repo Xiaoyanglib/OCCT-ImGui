@@ -28,8 +28,8 @@
 
 int main() {
     OcctImGui::Viewer app;
-    app.addShape(BRepPrimAPI_MakeBox(40, 40, 40).Shape(),    0.30f, 0.69f, 0.50f, "Box",      0, 0, 0);
-    app.addShape(BRepPrimAPI_MakeSphere(30).Shape(),          0.37f, 0.81f, 0.59f, "Sphere",   80, 0, 0);
-    app.addShape(BRepPrimAPI_MakeCylinder(20, 60).Shape(),    0.24f, 0.56f, 0.40f, "Cylinder", -80, 0, 0);
+    app.addShape(BRepPrimAPI_MakeBox(40, 40, 40).Shape(),    0.7f, 0.7f, 0.7f, "Box",      0, 0, 0);
+    app.addShape(BRepPrimAPI_MakeSphere(30).Shape(),          0.7f, 0.7f, 0.7f, "Sphere",   80, 0, 0);
+    app.addShape(BRepPrimAPI_MakeCylinder(20, 60).Shape(),    0.7f, 0.7f, 0.7f, "Cylinder", -80, 0, 0);
     return app.run();
 }
