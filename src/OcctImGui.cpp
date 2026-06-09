@@ -78,6 +78,7 @@ void Viewer::addShape(const TopoDS_Shape& shape, float r, float g, float b,
 
     if (viewer()) {
         Handle(AIS_Shape) ais = makeColoredShape(shape, r, g, b, tx, ty, tz);
+        viewer()->displayShape(ais);
         auto& entry = shapes_.emplace_back(ais, displayName, true, r, g, b, tx, ty, tz);
         extractFaces(entry, shape, r, g, b, tx, ty, tz);
     } else {
@@ -97,14 +98,12 @@ void Viewer::importFile(const char* path) {
             printf("Import failed: %s\n", p.c_str());
             return;
         }
-        float hue = (nextId_ * 0.37f);
-        float r = 0.30f + 0.20f * sinf(hue);
-        float g = 0.50f + 0.30f * sinf(hue + 2.0f);
-        float b = 0.40f + 0.30f * sinf(hue + 4.0f);
+        float r = 0.7f, g = 0.7f, b = 0.7f;
         Handle(AIS_Shape) ais = new AIS_Shape(shape);
         Handle(Prs3d_ShadingAspect) aspect = new Prs3d_ShadingAspect();
         aspect->SetColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
         ais->Attributes()->SetShadingAspect(aspect);
+        v->displayShape(ais);
         const char* name = strrchr(p.c_str(), '/');
 #ifdef _WIN32
         const char* bs = strrchr(p.c_str(), '\\');
@@ -130,6 +129,7 @@ void Viewer::init() {
     for (auto& ps : pendingShapes_) {
         Handle(AIS_Shape) ais = makeColoredShape(ps.shape, ps.r, ps.g, ps.b,
                                                  ps.tx, ps.ty, ps.tz);
+        viewer()->displayShape(ais, false);
         auto& entry = shapes_.emplace_back(ais, ps.name, true, ps.r, ps.g, ps.b,
                                            ps.tx, ps.ty, ps.tz);
         extractFaces(entry, ps.shape, ps.r, ps.g, ps.b, ps.tx, ps.ty, ps.tz);
@@ -256,6 +256,7 @@ void Viewer::drawObjectPanel() {
     if (ImGui::Combo("##selmode", &selCur, selModes, 4)) {
         selectionMode_ = selVals[selCur];
         viewer()->setSelectionMode(selectionMode_);
+        syncShapeDisplay();
     }
     ImGui::PopItemWidth();
 
@@ -310,14 +311,20 @@ void Viewer::drawObjectPanel() {
 
         if (ImGui::Checkbox("##vis", &entry.visible)) {
             bool vis = entry.visible;
-            // Update all face visibility immediately for UI
             for (auto& f : entry.faces) f.visible = vis;
+            auto shape = entry.aisShape;
             std::vector<Handle(AIS_Shape)> faceShapes;
             for (auto& f : entry.faces) faceShapes.push_back(f.aisFace);
-            pendingActions_.push_back([faceShapes, vis](OcctViewer* v) {
-                for (auto& fs : faceShapes) {
-                    if (vis) v->displayShape(fs, false);
-                    else     v->removeShape(fs, false);
+            bool showModel = (selectionMode_ == AIS_Shape::SelectionMode(TopAbs_SHAPE));
+            pendingActions_.push_back([shape, faceShapes, vis, showModel](OcctViewer* v) {
+                if (showModel) {
+                    if (vis) v->displayShape(shape, false);
+                    else     v->removeShape(shape, false);
+                } else {
+                    for (auto& fs : faceShapes) {
+                        if (vis) v->displayShape(fs, false);
+                        else     v->removeShape(fs, false);
+                    }
                 }
             });
         }
@@ -715,6 +722,21 @@ void Viewer::drawOverlay() {
     if (prevCull)   glEnable(GL_CULL_FACE);
 }
 
+void Viewer::syncShapeDisplay() {
+    bool showModel = (selectionMode_ == AIS_Shape::SelectionMode(TopAbs_SHAPE));
+    for (auto& entry : shapes_) {
+        if (showModel) {
+            if (entry.visible) viewer()->displayShape(entry.aisShape, false);
+            for (auto& f : entry.faces) viewer()->removeShape(f.aisFace, false);
+        } else {
+            viewer()->removeShape(entry.aisShape, false);
+            for (auto& f : entry.faces)
+                if (entry.visible && f.visible) viewer()->displayShape(f.aisFace, false);
+        }
+    }
+    viewer()->updateViewer();
+}
+
 void Viewer::extractFaces(ShapeEntry& entry, const TopoDS_Shape& shape,
                            float r, float g, float b,
                            double tx, double ty, double tz) {
@@ -731,7 +753,6 @@ void Viewer::extractFaces(ShapeEntry& entry, const TopoDS_Shape& shape,
             trsf.SetTranslation(gp_Vec(tx, ty, tz));
             faceAis->SetLocalTransformation(trsf);
         }
-        viewer()->displayShape(faceAis, false);
         entry.faces.emplace_back(faceAis, id++, r, g, b);
     }
 }

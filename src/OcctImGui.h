@@ -91,6 +91,7 @@ private:
 
     void drawObjectPanel();
     void drawOverlay() override;
+    void syncShapeDisplay();
     void updateClipPlane();
     void onClipDrag(float dx, float dy);
     Handle(AIS_Shape) makeColoredShape(const TopoDS_Shape& shape,
