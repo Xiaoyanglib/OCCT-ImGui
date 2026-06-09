@@ -114,7 +114,10 @@ void Viewer::importFile(const char* path) {
         buf[sizeof(buf) - 1] = '\0';
         auto& entry = shapes_.emplace_back(ais, buf, true, r, g, b);
         extractFaces(entry, shape, r, g, b);
-        if (selectionMode_ == AIS_Shape::SelectionMode(TopAbs_SHAPE))
+        int sm = selectionMode_;
+        if (sm == AIS_Shape::SelectionMode(TopAbs_SHAPE) ||
+            sm == AIS_Shape::SelectionMode(TopAbs_EDGE)   ||
+            sm == AIS_Shape::SelectionMode(TopAbs_VERTEX))
             v->displayShape(ais);
         else
             for (auto& f : entry.faces) v->displayShape(f.aisFace, false);
@@ -258,8 +261,8 @@ void Viewer::drawObjectPanel() {
     ImGui::PushItemWidth(-1);
     if (ImGui::Combo("##selmode", &selCur, selModes, 4)) {
         selectionMode_ = selVals[selCur];
-        viewer()->setSelectionMode(selectionMode_);
         syncShapeDisplay();
+        viewer()->setSelectionMode(selectionMode_);
     }
     ImGui::PopItemWidth();
 
@@ -726,9 +729,12 @@ void Viewer::drawOverlay() {
 }
 
 void Viewer::syncShapeDisplay() {
-    bool showModel = (selectionMode_ == AIS_Shape::SelectionMode(TopAbs_SHAPE));
+    int sm = selectionMode_;
+    bool useModel = (sm == AIS_Shape::SelectionMode(TopAbs_SHAPE) ||
+                     sm == AIS_Shape::SelectionMode(TopAbs_EDGE)   ||
+                     sm == AIS_Shape::SelectionMode(TopAbs_VERTEX));
     for (auto& entry : shapes_) {
-        if (showModel) {
+        if (useModel) {
             if (entry.visible) viewer()->displayShape(entry.aisShape, false);
             for (auto& f : entry.faces) viewer()->removeShape(f.aisFace, false);
         } else {
