@@ -544,15 +544,12 @@ void Application::drawDockSpace() {
             ImGui::ColorEdit3("##bg", bgColor_, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
             viewer()->setBackgroundColor(bgColor_[0], bgColor_[1], bgColor_[2]);
             ImGui::Separator();
-            ImGui::AlignTextToFramePadding();
-            ImGui::TextUnformatted("Projection");
-            ImGui::SameLine(100);
-            const char* projModes[] = { "Orthographic", "Perspective" };
-            int projCur = orthographic_ ? 0 : 1;
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            if (ImGui::Combo("##proj", &projCur, projModes, 2)) {
-                orthographic_ = (projCur == 0);
-                viewer()->setOrthographic(orthographic_);
+            if (ImGui::BeginMenu("Projection")) {
+                if (ImGui::MenuItem("Orthographic", nullptr, orthographic_))
+                    { orthographic_ = true; viewer()->setOrthographic(true); }
+                if (ImGui::MenuItem("Perspective", nullptr, !orthographic_))
+                    { orthographic_ = false; viewer()->setOrthographic(false); }
+                ImGui::EndMenu();
             }
             ImGui::EndMenu();
         }
