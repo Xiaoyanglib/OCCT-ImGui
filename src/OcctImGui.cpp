@@ -95,7 +95,8 @@ void Viewer::importFile(const char* path) {
     pendingActions_.push_back([this, p](OcctViewer* v) {
         TopoDS_Shape shape = v->importShape(p.c_str());
         if (shape.IsNull()) {
-            printf("Import failed: %s\n", p.c_str());
+            snprintf(statusMsg_, sizeof(statusMsg_), "Import failed: %s", p.c_str());
+            statusTimer_ = 3.0f;
             return;
         }
         float r = 0.7f, g = 0.7f, b = 0.7f;
@@ -114,13 +115,13 @@ void Viewer::importFile(const char* path) {
         buf[sizeof(buf) - 1] = '\0';
         auto& entry = shapes_.emplace_back(ais, buf, true, r, g, b);
         extractFaces(entry, shape, r, g, b);
-        if (selectionMode_ == AIS_Shape::SelectionMode(TopAbs_SHAPE) ||
-            selectionMode_ == AIS_Shape::SelectionMode(TopAbs_EDGE)   ||
-            selectionMode_ == AIS_Shape::SelectionMode(TopAbs_VERTEX))
+        if (!showFaces_)
             v->displayShape(ais);
         else
             for (auto& f : entry.faces) v->displayShape(f.aisFace, false);
         v->setSelectionMode(selectionMode_);
+        snprintf(statusMsg_, sizeof(statusMsg_), "Imported %s (%d faces)", buf, (int)entry.faces.size());
+        statusTimer_ = 4.0f;
         nextId_++;
     });
 }
@@ -213,7 +214,8 @@ void Viewer::onExport() {
     NCollection_List<TopoDS_Shape> selected;
     viewer()->getSelectedShapes(selected);
     if (selected.IsEmpty()) {
-        printf("No shapes selected for export\n");
+        snprintf(statusMsg_, sizeof(statusMsg_), "No shapes selected for export");
+        statusTimer_ = 3.0f;
         return;
     }
 
@@ -231,7 +233,8 @@ void Viewer::onExport() {
             builder.Add(compound, s);
         viewer()->exportShape(compound, path);
     }
-    printf("Exported: %s\n", path);
+    snprintf(statusMsg_, sizeof(statusMsg_), "Exported: %s", path);
+    statusTimer_ = 4.0f;
 }
 
 // ─── Panels ─────────────────────────────────────────────────────────────────
@@ -243,7 +246,25 @@ void Viewer::drawObjectPanel() {
     ImGui::Text("View");
     ImGui::Separator();
 
+    // Display mode
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Display");
+    ImGui::SameLine(80);
+    ImGui::PushItemWidth(-1);
+    const char* dispModes[] = { "Model", "Faces" };
+    int dispCur = showFaces_ ? 1 : 0;
+    if (ImGui::Combo("##display", &dispCur, dispModes, 2)) {
+        showFaces_ = (dispCur == 1);
+        syncShapeDisplay();
+        viewer()->setSelectionMode(selectionMode_);
+    }
+    ImGui::PopItemWidth();
+
     // Selection mode
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Select");
+    ImGui::SameLine(80);
+    ImGui::PushItemWidth(-1);
     const char* selModes[] = { "Shape", "Face", "Edge", "Vertex" };
     int selVals[] = {
         AIS_Shape::SelectionMode(TopAbs_SHAPE),
@@ -255,36 +276,9 @@ void Viewer::drawObjectPanel() {
     for (int i = 0; i < 4; ++i) {
         if (selectionMode_ == selVals[i]) { selCur = i; break; }
     }
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Select");
-    ImGui::SameLine();
-    ImGui::PushItemWidth(-1);
     if (ImGui::Combo("##selmode", &selCur, selModes, 4)) {
         selectionMode_ = selVals[selCur];
-        syncShapeDisplay();
         viewer()->setSelectionMode(selectionMode_);
-    }
-    ImGui::PopItemWidth();
-
-    // Background color
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Background");
-    ImGui::SameLine();
-    if (ImGui::ColorEdit3("##bgcolor", bgColor_,
-        ImGuiColorEditFlags_NoInputs)) {
-        viewer()->setBackgroundColor(bgColor_[0], bgColor_[1], bgColor_[2]);
-    }
-
-    // Projection
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Projection");
-    ImGui::SameLine();
-    ImGui::PushItemWidth(-1);
-    const char* projModes[] = { "Orthographic", "Perspective" };
-    int projCur = orthographic_ ? 0 : 1;
-    if (ImGui::Combo("##proj", &projCur, projModes, 2)) {
-        orthographic_ = (projCur == 0);
-        viewer()->setOrthographic(orthographic_);
     }
     ImGui::PopItemWidth();
 
@@ -303,12 +297,16 @@ void Viewer::drawObjectPanel() {
 
         // ── Parent model row ──
         bool expanded = entry.facesExpanded;
-        if (!entry.faces.empty()) {
+        bool hasFaces = !entry.faces.empty();
+        if (hasFaces && showFaces_) {
             ImGui::AlignTextToFramePadding();
             if (ImGui::ArrowButton("##expand", expanded ?
                 ImGuiDir_Down : ImGuiDir_Right)) {
                 entry.facesExpanded = !expanded;
             }
+            ImGui::SameLine();
+        } else if (hasFaces) {
+            ImGui::Dummy(ImVec2(ImGui::GetFrameHeight(), 0));
             ImGui::SameLine();
         } else {
             ImGui::Dummy(ImVec2(ImGui::GetFrameHeight(), 0));
@@ -321,10 +319,7 @@ void Viewer::drawObjectPanel() {
             auto shape = entry.aisShape;
             std::vector<Handle(AIS_Shape)> faceShapes;
             for (auto& f : entry.faces) faceShapes.push_back(f.aisFace);
-            int sm = selectionMode_;
-            bool useModel = (sm == AIS_Shape::SelectionMode(TopAbs_SHAPE) ||
-                             sm == AIS_Shape::SelectionMode(TopAbs_EDGE)   ||
-                             sm == AIS_Shape::SelectionMode(TopAbs_VERTEX));
+            bool useModel = !showFaces_;
             pendingActions_.push_back([shape, faceShapes, vis, useModel](OcctViewer* v) {
                 if (useModel) {
                     if (vis) v->displayShape(shape, false);
@@ -425,7 +420,7 @@ void Viewer::drawObjectPanel() {
         }
 
         // ── Expand: face sub-objects ──
-        if (expanded) {
+        if (showFaces_ && expanded) {
             for (auto& f : entry.faces) {
                 ImGui::PushID(1000 + f.id);
                 ImGui::AlignTextToFramePadding();
@@ -732,12 +727,8 @@ void Viewer::drawOverlay() {
 }
 
 void Viewer::syncShapeDisplay() {
-    int sm = selectionMode_;
-    bool useModel = (sm == AIS_Shape::SelectionMode(TopAbs_SHAPE) ||
-                     sm == AIS_Shape::SelectionMode(TopAbs_EDGE)   ||
-                     sm == AIS_Shape::SelectionMode(TopAbs_VERTEX));
     for (auto& entry : shapes_) {
-        if (useModel) {
+        if (!showFaces_) {
             if (entry.visible) viewer()->displayShape(entry.aisShape, false);
             for (auto& f : entry.faces) viewer()->removeShape(f.aisFace, false);
         } else {
