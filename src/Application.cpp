@@ -411,9 +411,6 @@ void Application::drawStatusBar() {
         ImGui::SameLine();
         ImGui::TextColored(ImVec4(0.0f, 0.4f, 0.8f, 1.0f), "%s", statusMsg_);
         if (--statusFrames_ <= 0) statusMsg_[0] = '\0';
-    } else {
-        ImGui::SameLine();
-        ImGui::TextDisabled("Ready");
     }
     const char* cr = "OCCT-ImGui  (c) 2026 Xiaoyang Yu";
     float crW = ImGui::CalcTextSize(cr).x;
