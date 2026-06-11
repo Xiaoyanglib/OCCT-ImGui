@@ -33,16 +33,27 @@ int main() {
     // Create the application. This sets up GLFW, ImGui, and the OCCT renderer.
     OcctImGui::Viewer app;
 
-    // Add a 40×40×40 box, then paint each face a different color
+    // ── Box (40×40×40) at origin ─────────────────────────────────────
+    // Create a cube. BRepPrimAPI_MakeBox builds a box with 6 faces.
+    // addShape returns an index for later face-color customization.
     int boxIdx = app.addShape(
-        BRepPrimAPI_MakeBox(40, 40, 40).Shape(),
-        0.7f, 0.7f, 0.7f,
-        "Box", 0, 0, 0);
+        BRepPrimAPI_MakeBox(40, 40, 40).Shape(),   // OCCT TopoDS_Shape
+        0.7f, 0.7f, 0.7f,                          // default metallic gray
+        "Box",                                       // name in Objects panel
+        0, 0, 0);                                    // position (no offset)
 
+    // Pre-defined palette: 6 distinct colors for the 6 faces
+    // Box face order: +X, -X, +Y, -Y, +Z, -Z (per BRepPrimAPI_MakeBox convention)
     static float colors[6][3] = {
-        {0.8f, 0.2f, 0.2f}, {0.2f, 0.8f, 0.2f}, {0.2f, 0.2f, 0.8f},
-        {0.8f, 0.8f, 0.2f}, {0.8f, 0.4f, 0.8f}, {0.2f, 0.8f, 0.8f},
+        {0.8f, 0.2f, 0.2f},  // +X face → red
+        {0.2f, 0.8f, 0.2f},  // -X face → green
+        {0.2f, 0.2f, 0.8f},  // +Y face → blue
+        {0.8f, 0.8f, 0.2f},  // -Y face → yellow
+        {0.8f, 0.4f, 0.8f},  // +Z face → magenta
+        {0.2f, 0.8f, 0.8f},  // -Z face → cyan
     };
+    // Apply each color to the corresponding face
+    // setFaceColor(shapeIndex, faceId, red, green, blue)
     for (int i = 0; i < 6; ++i)
         app.setFaceColor(boxIdx, i, colors[i][0], colors[i][1], colors[i][2]);
 
@@ -54,11 +65,15 @@ int main() {
         80, 0, 0);   // shifted +80 on X
 
     // Add a cylinder of radius 20 and height 60, offset to the left
-    app.addShape(
+    int cylIdx = app.addShape(
         BRepPrimAPI_MakeCylinder(20, 60).Shape(),
         0.7f, 0.7f, 0.7f,
         "Cylinder",
         -80, 0, 0);  // shifted -80 on X
+
+    // Color cylinder faces (0=side, 1=top, 2=bottom)
+    app.setFaceColor(cylIdx, 1, 0.8f, 0.2f, 0.2f);   // top → red
+    app.setFaceColor(cylIdx, 2, 0.2f, 0.2f, 0.8f);   // bottom → blue
 
     // Start the main loop. Blocks until the user closes the window.
     return app.run();

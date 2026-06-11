@@ -42,8 +42,9 @@ struct FaceEntry {
     FaceEntry(const Handle(AIS_Shape)& f, int i, float r, float g, float b)
         : aisFace(f), id(i), color{r, g, b} {}
 
-    /// Set face color and apply to the 3D view.
+private:
     void setColor(float r, float g, float b);
+    friend class Viewer;
 };
 
 /// Main application class. Create one instance, call addShape / importFile,

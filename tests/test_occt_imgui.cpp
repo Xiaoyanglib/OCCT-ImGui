@@ -110,14 +110,4 @@ TEST(OcctImGuiTest, SetFaceColorInvalidIndex) {
     SUCCEED();
 }
 
-TEST(OcctImGuiTest, FaceEntrySetColor) {
-    Handle(AIS_Shape) dummy = new AIS_Shape(TopoDS_Shape());
-    OcctImGui::FaceEntry f(dummy, 0, 0.5f, 0.5f, 0.5f);
-    f.setColor(0.8f, 0.2f, 0.2f);
-    EXPECT_TRUE(f.useCustomColor);
-    EXPECT_FLOAT_EQ(f.color[0], 0.8f);
-    EXPECT_FLOAT_EQ(f.color[1], 0.2f);
-    EXPECT_FLOAT_EQ(f.color[2], 0.2f);
-}
-
 } // namespace
