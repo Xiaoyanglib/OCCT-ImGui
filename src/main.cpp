@@ -1,4 +1,4 @@
-// MIT License
+﻿// MIT License
 //
 // Copyright (c) 2026 Xiaoyang Yu
 //
@@ -43,14 +43,13 @@ int main() {
         0, 0, 0);                                    // position (no offset)
 
     // Pre-defined palette: 6 distinct colors for the 6 faces
-    // Box face order: +X, -X, +Y, -Y, +Z, -Z (per BRepPrimAPI_MakeBox convention)
     static float colors[6][3] = {
-        {0.8f, 0.2f, 0.2f},  // +X face → red
-        {0.2f, 0.8f, 0.2f},  // -X face → green
-        {0.2f, 0.2f, 0.8f},  // +Y face → blue
-        {0.8f, 0.8f, 0.2f},  // -Y face → yellow
-        {0.8f, 0.4f, 0.8f},  // +Z face → magenta
-        {0.2f, 0.8f, 0.8f},  // -Z face → cyan
+        {0.8f, 0.2f, 0.2f},  // red
+        {0.2f, 0.8f, 0.2f},  // green
+        {0.2f, 0.2f, 0.8f},  // blue
+        {0.8f, 0.8f, 0.2f},  // yellow
+        {0.8f, 0.4f, 0.8f},  // magenta
+        {0.2f, 0.8f, 0.8f},  // cyan
     };
     // Apply each color to the corresponding face
     // setFaceColor(shapeIndex, faceId, red, green, blue)
@@ -71,9 +70,9 @@ int main() {
         "Cylinder",
         -80, 0, 0);  // shifted -80 on X
 
-    // Color cylinder faces (0=side, 1=top, 2=bottom)
-    app.setFaceColor(cylIdx, 1, 0.8f, 0.2f, 0.2f);   // top → red
-    app.setFaceColor(cylIdx, 2, 0.2f, 0.2f, 0.8f);   // bottom → blue
+    // Color cylinder faces
+    app.setFaceColor(cylIdx, 1, 0.8f, 0.2f, 0.2f);   // red
+    app.setFaceColor(cylIdx, 2, 0.2f, 0.2f, 0.8f);   // blue
 
     // Start the main loop. Blocks until the user closes the window.
     return app.run();
