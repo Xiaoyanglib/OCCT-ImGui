@@ -36,13 +36,6 @@ TEST(OcctImGuiTest, AddMultipleShapes) {
     SUCCEED();
 }
 
-TEST(OcctImGuiTest, FitAll) {
-    OcctImGui::Viewer viewer;
-    viewer.fitAll();
-    // Queued as pending action, should not crash
-    SUCCEED();
-}
-
 TEST(OcctImGuiTest, AddShapeWithTranslation) {
     OcctImGui::Viewer viewer;
     TopoDS_Shape box = BRepPrimAPI_MakeBox(10, 10, 10).Shape();
@@ -57,19 +50,10 @@ TEST(OcctImGuiTest, ImportEmptyPath) {
     SUCCEED();
 }
 
-TEST(OcctImGuiTest, MultipleFitAll) {
-    OcctImGui::Viewer viewer;
-    viewer.fitAll();
-    viewer.fitAll();
-    viewer.fitAll();
-    SUCCEED();
-}
-
 TEST(OcctImGuiTest, ShapesPersistAcrossShow) {
     OcctImGui::Viewer viewer;
     viewer.addShape(BRepPrimAPI_MakeBox(10, 10, 10).Shape(), 0, 0, 0, "Box");
-    viewer.fitAll();
-    // Show would create viewer context — just verify no crash on shape ops pre-show
+    // Show would create viewer context
     SUCCEED();
 }
 
@@ -101,19 +85,8 @@ TEST(OcctImGuiTest, FaceCustomColorFlag) {
 TEST(OcctImGuiTest, FaceEntryInitiallyOwnedByParent) {
     Handle(AIS_Shape) dummy = new AIS_Shape(TopoDS_Shape());
     OcctImGui::FaceEntry f(dummy, 3, 0.8f, 0.2f, 0.1f);
-    // Face defaults: not custom, visible, parent color
     EXPECT_FALSE(f.useCustomColor);
     EXPECT_TRUE(f.visible);
-}
-
-TEST(OcctImGuiTest, SetBackgroundColor) {
-    OcctImGui::Viewer viewer;
-    SUCCEED();
-}
-
-TEST(OcctImGuiTest, SetOrthographic) {
-    OcctImGui::Viewer viewer;
-    SUCCEED();
 }
 
 } // namespace

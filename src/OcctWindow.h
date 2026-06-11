@@ -27,6 +27,8 @@
 
 struct GLFWwindow;
 
+/// GLFW-to-OCCT window bridge. Implements OCCT's Aspect_Window interface
+/// so the 3D view can render into a GLFW-managed OpenGL context.
 class OcctWindow : public Aspect_Window
 {
     DEFINE_STANDARD_RTTI_INLINE(OcctWindow, Aspect_Window)
@@ -34,12 +36,17 @@ public:
     OcctWindow(GLFWwindow* theWin, int theWidth, int theHeight);
     virtual ~OcctWindow() {}
 
+    /// Update the window size in framebuffer pixels.
     void updateSize(int w, int h);
+
     Aspect_RenderingContext NativeGlContext() const;
 
     Aspect_Drawable NativeHandle() const override;
     Aspect_Drawable NativeParentHandle() const override { return 0; }
+
+    /// Called by OCCT when the window needs to be resized.
     Aspect_TypeOfResize DoResize() override;
+
     bool IsMapped() const override { return true; }
     bool DoMapping() const override { return true; }
     void Map() const override {}
@@ -50,14 +57,17 @@ public:
     {
         theX1 = myXLeft; theX2 = myXRight; theY1 = myYTop; theY2 = myYBottom;
     }
+
     double Ratio() const override
     {
         return double(myXRight - myXLeft) / double(myYBottom - myYTop);
     }
+
     void Size(int& theWidth, int& theHeight) const override
     {
         theWidth = myXRight - myXLeft; theHeight = myYBottom - myYTop;
     }
+
     Aspect_FBConfig NativeFBConfig() const override { return nullptr; }
 
 private:

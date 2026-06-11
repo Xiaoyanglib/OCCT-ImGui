@@ -35,60 +35,92 @@
 
 struct GLFWwindow;
 
+/// Low-level OCCT 3D viewer wrapper. Manages the AIS context, camera,
+/// scene objects, and clip planes. Wraps GLFW window into OCCT's Aspect_Window.
 class OcctViewer {
 public:
     OcctViewer(GLFWwindow* glfwWindow);
     ~OcctViewer();
 
+    /// Render the 3D scene.
     void redraw();
+
+    /// Notify the context that the scene has changed (call after batch updates).
     void updateViewer();
+
+    /// Handle framebuffer size change.
     void resize(int width, int height);
 
-    // Camera
+    // ── Camera ──────────────────────────────────────────────────────────
+
     void startRotation(int x, int y);
     void rotation(int x, int y);
     void zoom(double factor);
     void pan(int x, int y);
+
+    /// Fit the view to show all displayed shapes.
     void fitAll();
 
-    // Camera matrix helpers for orientation gizmo
+    /// Get view and projection matrices for the orientation gizmo.
     void getCameraMatrices(float viewMat[16], float projMat[16]) const;
+
+    /// Set camera from a view matrix (orientation gizmo callback).
     void setCameraFromViewMatrix(const float viewMat[16]);
 
-    // Scene
+    // ── Scene objects ───────────────────────────────────────────────────
+
+    /// Add a shape to the display. Set update=true to refresh immediately.
     void displayShape(const Handle(AIS_Shape)& shape, bool update = true);
+
+    /// Remove a shape from the display.
     void removeShape(const Handle(AIS_Shape)& shape, bool update = true);
 
-    // Display mode
+    /// Set shaded display with visible edges.
     void setShadedWithEdges();
 
-    // Import / export
+    // ── Import / export ─────────────────────────────────────────────────
+
+    /// Read a CAD file and return the shape (does not add to scene).
     TopoDS_Shape importShape(const char* path);
+
+    /// Write a shape to a CAD file.
     bool exportShape(const TopoDS_Shape& shape, const char* path);
+
+    /// Get currently selected shapes.
     void getSelectedShapes(NCollection_List<TopoDS_Shape>& outList);
 
-    // Clip / section planes
+    // ── Clip planes ─────────────────────────────────────────────────────
+
     void addClipPlane(int id, const gp_Pln& plane);
     void removeClipPlane(int id);
     void setClipPlaneEquation(int id, const gp_Pln& plane);
     void setClipPlaneOn(int id, bool on);
     void setClipPlaneCapping(int id, bool enable, Quantity_Color color, float alpha = 0.0f);
     bool hasClipPlane(int id) const;
+
+    /// Get the bounding box of all displayed shapes.
     void getBoundingBox(double* xmin, double* ymin, double* zmin,
                         double* xmax, double* ymax, double* zmax) const;
 
-    // File dialogs
+    // ── File dialogs ────────────────────────────────────────────────────
+
     static bool openFileDialog(char* outPath, int maxLen);
     static bool saveFileDialog(char* outPath, int maxLen);
 
-    // Selection & hover
+    // ── Selection ───────────────────────────────────────────────────────
+
     void moveTo(int x, int y);
     void deselectOrClear();
     bool shiftSelect(int x, int y);
     void selectRectangle(int x1, int y1, int x2, int y2);
     void shiftSelectRectangle(int x1, int y1, int x2, int y2);
     void clearSelection();
+
+    /// Set global selection mode (Shape/Face/Edge/Vertex).
     void setSelectionMode(int mode);
+
+    // ── Display settings ────────────────────────────────────────────────
+
     void setBackgroundColor(float r, float g, float b);
     void setOrthographic(bool ortho);
 

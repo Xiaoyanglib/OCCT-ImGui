@@ -31,25 +31,51 @@
 
 class OcctViewer;
 
+/// Base application class. Manages the GLFW window, ImGui context, OCCT viewer,
+/// docking layout, and main event loop. Subclass to customize panels and behavior.
 class Application {
 public:
     Application();
     virtual ~Application();
 
+    /// Start the application: create window, init ImGui/OCCT, enter main loop.
     int run();
 
 protected:
+    /// Called once after viewer is created. Override for custom initialization.
     virtual void init();
+
+    /// Called every frame to draw ImGui panels. Override for custom UI.
     virtual void drawGui();
+
+    /// Draw the Viewer info panel (controls reference).
     virtual void drawViewerPanel();
+
+    /// Draw the status bar at the bottom of the window.
     virtual void drawStatusBar();
+
+    /// Draw the rectangle selection rubber band overlay.
     virtual void drawRubberBand();
+
+    /// Draw OpenGL overlays after OCCT rendering (clip plane indicator, etc).
     virtual void drawOverlay();
+
+    /// Called when File > Import is triggered.
     virtual void onImport();
+
+    /// Called when File > Export is triggered.
     virtual void onExport();
+
+    /// Called when a file is imported (from drag-drop or dialog).
     virtual void onImportFile(const char* path);
+
+    /// Called before OCCT rendering each frame.
     virtual void preFrame();
+
+    /// Called after rendering and buffer swap each frame.
     virtual void postFrame();
+
+    /// Called during application shutdown.
     virtual void shutdown();
 
     GLFWwindow* window() const { return window_; }
@@ -67,18 +93,17 @@ protected:
     bool  orthographic_   = true;
     bool guiWantsMouse_   = false;
     bool firstFrame_      = true;
-    bool panning_         = false;   // left-drag → pan
-    bool selecting_       = false;   // Shift+left-drag → rect-select
-    bool selectShift_     = false;   // true if currently in shift-rect-select
-    int  selStartX_       = 0, selStartY_ = 0;
-    int  selEndX_         = 0, selEndY_   = 0;
-    int  clickStartX_     = 0, clickStartY_ = 0;
-    int  lastMouseX_      = 0;
-    int  lastMouseY_      = 0;
+    bool panning_         = false;
+    bool selecting_       = false;
+    bool selectShift_     = false;
+    int  selStartX_ = 0, selStartY_ = 0;
+    int  selEndX_   = 0, selEndY_   = 0;
+    int  clickStartX_ = 0, clickStartY_ = 0;
+    int  lastMouseX_ = 0;
+    int  lastMouseY_ = 0;
 
-    // Deferred rectangle selection (processed in postFrame)
-    bool pendingRectSelect_  = false;
-    bool pendingRectShift_   = false;
+    bool pendingRectSelect_ = false;
+    bool pendingRectShift_  = false;
     int  rectX1_ = 0, rectY1_ = 0, rectX2_ = 0, rectY2_ = 0;
 
 private:

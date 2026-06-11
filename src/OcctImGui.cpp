@@ -54,19 +54,27 @@
 
 namespace OcctImGui {
 
+void FaceEntry::setColor(float r, float g, float b) {
+    color[0] = r; color[1] = g; color[2] = b;
+    useCustomColor = true;
+    auto face = aisFace;
+    if (!face.IsNull()) {
+        Handle(Prs3d_ShadingAspect) a = new Prs3d_ShadingAspect();
+        a->SetColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
+        face->Attributes()->SetShadingAspect(a);
+        face->Redisplay(false);
+    }
+}
+
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
 Viewer::Viewer() {}
 
 Viewer::~Viewer() {}
 
-void Viewer::show() {
-    run();
-}
-
 // ─── Public API ─────────────────────────────────────────────────────────────
 
-void Viewer::addShape(const TopoDS_Shape& shape, float r, float g, float b,
+int Viewer::addShape(const TopoDS_Shape& shape, float r, float g, float b,
                       const char* name, double tx, double ty, double tz) {
     std::string displayName;
     if (name && name[0])
@@ -81,8 +89,24 @@ void Viewer::addShape(const TopoDS_Shape& shape, float r, float g, float b,
         viewer()->displayShape(ais);
         auto& entry = shapes_.emplace_back(ais, displayName, true, r, g, b, tx, ty, tz);
         extractFaces(entry, shape, r, g, b, tx, ty, tz);
+        return (int)shapes_.size() - 1;
     } else {
-        pendingShapes_.push_back({shape, r, g, b, displayName, tx, ty, tz});
+        auto& entry = shapes_.emplace_back(Handle(AIS_Shape)(), displayName, true, r, g, b, tx, ty, tz);
+        extractFaces(entry, shape, r, g, b, tx, ty, tz);
+        int idx = (int)shapes_.size() - 1;
+        pendingShapes_.push_back({shape, r, g, b, displayName, tx, ty, tz, (size_t)idx});
+        return idx;
+    }
+}
+
+void Viewer::setFaceColor(int shapeIdx, int faceId, float r, float g, float b) {
+    if (shapeIdx < 0 || shapeIdx >= (int)shapes_.size()) return;
+    auto& entry = shapes_[shapeIdx];
+    for (auto& f : entry.faces) {
+        if (f.id == faceId) {
+            f.setColor(r, g, b);
+            return;
+        }
     }
 }
 
@@ -136,11 +160,13 @@ void Viewer::init() {
         Handle(AIS_Shape) ais = makeColoredShape(ps.shape, ps.r, ps.g, ps.b,
                                                  ps.tx, ps.ty, ps.tz);
         viewer()->displayShape(ais, false);
-        auto& entry = shapes_.emplace_back(ais, ps.name, true, ps.r, ps.g, ps.b,
-                                           ps.tx, ps.ty, ps.tz);
-        extractFaces(entry, ps.shape, ps.r, ps.g, ps.b, ps.tx, ps.ty, ps.tz);
+        auto& entry = shapes_[ps.shapeIdx];
+        entry.aisShape = ais;
+        for (auto& f : entry.faces)
+            viewer()->displayShape(f.aisFace, false);
     }
     pendingShapes_.clear();
+    syncShapeDisplay();
 
     if (!shapes_.empty())
         viewer()->fitAll();
@@ -314,16 +340,18 @@ void Viewer::drawObjectPanel() {
 
         if (ImGui::Checkbox("##vis", &entry.visible)) {
             bool vis = entry.visible;
+            bool sf = showFaces_;
             for (auto& f : entry.faces) f.visible = vis;
             auto shape = entry.aisShape;
             std::vector<Handle(AIS_Shape)> faceShapes;
             for (auto& f : entry.faces) faceShapes.push_back(f.aisFace);
-            pendingActions_.push_back([shape, faceShapes, vis](OcctViewer* v) {
-                if (vis) v->displayShape(shape, false);
-                else     v->removeShape(shape, false);
-                for (auto& fs : faceShapes) {
-                    if (vis) v->displayShape(fs, false);
-                    else     v->removeShape(fs, false);
+            pendingActions_.push_back([shape, faceShapes, vis, sf](OcctViewer* v) {
+                if (vis) {
+                    if (!sf) v->displayShape(shape, false);
+                    else for (auto& fs : faceShapes) v->displayShape(fs, false);
+                } else {
+                    v->removeShape(shape, false);
+                    for (auto& fs : faceShapes) v->removeShape(fs, false);
                 }
             });
         }
@@ -469,13 +497,14 @@ void Viewer::drawObjectPanel() {
         for (auto& entry : shapes_) {
             if (entry.visible) continue;
             entry.visible = true;
-            for (auto& f : entry.faces) { f.visible = true; }
+            for (auto& f : entry.faces) f.visible = true;
+            bool sf = showFaces_;
             auto shape = entry.aisShape;
             std::vector<Handle(AIS_Shape)> faceShapes;
             for (auto& f : entry.faces) faceShapes.push_back(f.aisFace);
-            pendingActions_.push_back([shape, faceShapes, showFaces = showFaces_](OcctViewer* v) {
-                if (!showFaces) v->displayShape(shape, false);
-                for (auto& fs : faceShapes) v->displayShape(fs, false);
+            pendingActions_.push_back([shape, faceShapes, sf](OcctViewer* v) {
+                if (!sf) v->displayShape(shape, false);
+                else for (auto& fs : faceShapes) v->displayShape(fs, false);
             });
         }
         snprintf(statusMsg_, sizeof(statusMsg_), "Show All");
@@ -485,7 +514,7 @@ void Viewer::drawObjectPanel() {
         for (auto& entry : shapes_) {
             if (!entry.visible) continue;
             entry.visible = false;
-            for (auto& f : entry.faces) { f.visible = false; }
+            for (auto& f : entry.faces) f.visible = false;
             auto shape = entry.aisShape;
             std::vector<Handle(AIS_Shape)> faceShapes;
             for (auto& f : entry.faces) faceShapes.push_back(f.aisFace);
