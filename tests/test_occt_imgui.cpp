@@ -89,4 +89,35 @@ TEST(OcctImGuiTest, FaceEntryInitiallyOwnedByParent) {
     EXPECT_TRUE(f.visible);
 }
 
+TEST(OcctImGuiTest, AddShapeReturnsValidIndex) {
+    OcctImGui::Viewer viewer;
+    int idx = viewer.addShape(BRepPrimAPI_MakeBox(10, 10, 10).Shape(), 0.5f, 0.5f, 0.5f, "Box");
+    EXPECT_GE(idx, 0);
+}
+
+TEST(OcctImGuiTest, SetFaceColorValidIndex) {
+    OcctImGui::Viewer viewer;
+    int idx = viewer.addShape(BRepPrimAPI_MakeBox(10, 10, 10).Shape(), 0.7f, 0.7f, 0.7f);
+    viewer.setFaceColor(idx, 0, 0.8f, 0.2f, 0.2f);
+    SUCCEED();
+}
+
+TEST(OcctImGuiTest, SetFaceColorInvalidIndex) {
+    OcctImGui::Viewer viewer;
+    viewer.addShape(BRepPrimAPI_MakeBox(10, 10, 10).Shape(), 0.7f, 0.7f, 0.7f);
+    viewer.setFaceColor(999, 0, 0.8f, 0.2f, 0.2f);  // out of range
+    viewer.setFaceColor(-1, 0, 0.8f, 0.2f, 0.2f);    // negative
+    SUCCEED();
+}
+
+TEST(OcctImGuiTest, FaceEntrySetColor) {
+    Handle(AIS_Shape) dummy = new AIS_Shape(TopoDS_Shape());
+    OcctImGui::FaceEntry f(dummy, 0, 0.5f, 0.5f, 0.5f);
+    f.setColor(0.8f, 0.2f, 0.2f);
+    EXPECT_TRUE(f.useCustomColor);
+    EXPECT_FLOAT_EQ(f.color[0], 0.8f);
+    EXPECT_FLOAT_EQ(f.color[1], 0.2f);
+    EXPECT_FLOAT_EQ(f.color[2], 0.2f);
+}
+
 } // namespace
