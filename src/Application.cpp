@@ -415,9 +415,9 @@ void Application::drawStatusBar() {
         if (--statusFrames_ <= 0) statusMsg_[0] = '\0';
     }
     const char* cr = "OCCT-ImGui  (c) 2026 Xiaoyang Yu";
-    float crW = ImGui::CalcTextSize(cr).x;
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x - crW);
-    ImGui::TextDisabled("%s", cr);
+    { float crW = ImGui::CalcTextSize(cr).x;
+      ImGui::SameLine(ImGui::GetWindowWidth() - crW - ImGui::GetStyle().WindowPadding.x);
+      ImGui::TextDisabled("%s", cr); }
 
     ImGui::End();
 }
