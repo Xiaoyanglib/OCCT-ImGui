@@ -409,13 +409,13 @@ void Application::drawStatusBar() {
     ImGui::Text("FPS: %.0f", fps);
     if (statusMsg_[0]) {
         ImGui::SameLine();
-        ImGui::TextDisabled("%s", statusMsg_);
+        ImGui::TextColored(ImVec4(0.2f, 0.5f, 0.8f, 1.0f), "%s", statusMsg_);
         statusTimer_ -= ImGui::GetIO().DeltaTime;
         if (statusTimer_ <= 0) statusMsg_[0] = '\0';
     }
     const char* cr = "OCCT-ImGui  (c) 2026 Xiaoyang Yu";
     float crW = ImGui::CalcTextSize(cr).x;
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x - crW);
+    ImGui::SameLine(ImMax(ImGui::GetCursorPosX(), ImGui::GetContentRegionAvail().x - crW));
     ImGui::TextDisabled("%s", cr);
 
     ImGui::End();
