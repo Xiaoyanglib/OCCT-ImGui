@@ -92,11 +92,13 @@ void Viewer::fitAll() {
 
 void Viewer::importFile(const char* path) {
     std::string p(path);
+    snprintf(statusMsg_, sizeof(statusMsg_), "Importing %s...", path);
+    statusFrames_ = 9999;
     pendingActions_.push_back([this, p](OcctViewer* v) {
         TopoDS_Shape shape = v->importShape(p.c_str());
         if (shape.IsNull()) {
             snprintf(statusMsg_, sizeof(statusMsg_), "Import failed: %s", p.c_str());
-            statusTimer_ = 3.0f;
+            statusFrames_ = 180;
             return;
         }
         float r = 0.7f, g = 0.7f, b = 0.7f;
@@ -121,7 +123,7 @@ void Viewer::importFile(const char* path) {
             for (auto& f : entry.faces) v->displayShape(f.aisFace, false);
         v->setSelectionMode(selectionMode_);
         snprintf(statusMsg_, sizeof(statusMsg_), "Imported %s (%d faces)", buf, (int)entry.faces.size());
-        statusTimer_ = 4.0f;
+        statusFrames_ = 240;
         nextId_++;
     });
 }
@@ -215,7 +217,7 @@ void Viewer::onExport() {
     viewer()->getSelectedShapes(selected);
     if (selected.IsEmpty()) {
         snprintf(statusMsg_, sizeof(statusMsg_), "No shapes selected for export");
-        statusTimer_ = 3.0f;
+        statusFrames_ = 180;
         return;
     }
 
@@ -234,7 +236,7 @@ void Viewer::onExport() {
         viewer()->exportShape(compound, path);
     }
     snprintf(statusMsg_, sizeof(statusMsg_), "Exported: %s", path);
-    statusTimer_ = 4.0f;
+    statusFrames_ = 240;
 }
 
 // ─── Panels ─────────────────────────────────────────────────────────────────

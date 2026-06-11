@@ -410,8 +410,7 @@ void Application::drawStatusBar() {
     if (statusMsg_[0]) {
         ImGui::SameLine();
         ImGui::TextColored(ImVec4(0.0f, 0.4f, 0.8f, 1.0f), "%s", statusMsg_);
-        statusTimer_ -= ImGui::GetIO().DeltaTime;
-        if (statusTimer_ <= 0) statusMsg_[0] = '\0';
+        if (--statusFrames_ <= 0) statusMsg_[0] = '\0';
     } else {
         ImGui::SameLine();
         ImGui::TextDisabled("Ready");
