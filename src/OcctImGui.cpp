@@ -93,12 +93,10 @@ void Viewer::fitAll() {
 void Viewer::importFile(const char* path) {
     std::string p(path);
     snprintf(statusMsg_, sizeof(statusMsg_), "Importing %s...", path);
-    statusFrames_ = 9999;
     pendingActions_.push_back([this, p](OcctViewer* v) {
         TopoDS_Shape shape = v->importShape(p.c_str());
         if (shape.IsNull()) {
             snprintf(statusMsg_, sizeof(statusMsg_), "Import failed: %s", p.c_str());
-            statusFrames_ = 180;
             return;
         }
         float r = 0.7f, g = 0.7f, b = 0.7f;
@@ -123,7 +121,6 @@ void Viewer::importFile(const char* path) {
             for (auto& f : entry.faces) v->displayShape(f.aisFace, false);
         v->setSelectionMode(selectionMode_);
         snprintf(statusMsg_, sizeof(statusMsg_), "Imported %s (%d faces)", buf, (int)entry.faces.size());
-        statusFrames_ = 240;
         nextId_++;
     });
 }
@@ -217,7 +214,6 @@ void Viewer::onExport() {
     viewer()->getSelectedShapes(selected);
     if (selected.IsEmpty()) {
         snprintf(statusMsg_, sizeof(statusMsg_), "No shapes selected for export");
-        statusFrames_ = 180;
         return;
     }
 
@@ -236,7 +232,6 @@ void Viewer::onExport() {
         viewer()->exportShape(compound, path);
     }
     snprintf(statusMsg_, sizeof(statusMsg_), "Exported: %s", path);
-    statusFrames_ = 240;
 }
 
 // ─── Panels ─────────────────────────────────────────────────────────────────
@@ -259,6 +254,7 @@ void Viewer::drawObjectPanel() {
         showFaces_ = (dispCur == 1);
         syncShapeDisplay();
         viewer()->setSelectionMode(selectionMode_);
+        snprintf(statusMsg_, sizeof(statusMsg_), "Display: %s", dispModes[dispCur]);
     }
     ImGui::PopItemWidth();
 
@@ -281,6 +277,7 @@ void Viewer::drawObjectPanel() {
     if (ImGui::Combo("##selmode", &selCur, selModes, 4)) {
         selectionMode_ = selVals[selCur];
         viewer()->setSelectionMode(selectionMode_);
+        snprintf(statusMsg_, sizeof(statusMsg_), "Select: %s", selModes[selCur]);
     }
     ImGui::PopItemWidth();
 
@@ -321,16 +318,12 @@ void Viewer::drawObjectPanel() {
             auto shape = entry.aisShape;
             std::vector<Handle(AIS_Shape)> faceShapes;
             for (auto& f : entry.faces) faceShapes.push_back(f.aisFace);
-            bool useModel = !showFaces_;
-            pendingActions_.push_back([shape, faceShapes, vis, useModel](OcctViewer* v) {
-                if (useModel) {
-                    if (vis) v->displayShape(shape, false);
-                    else     v->removeShape(shape, false);
-                } else {
-                    for (auto& fs : faceShapes) {
-                        if (vis) v->displayShape(fs, false);
-                        else     v->removeShape(fs, false);
-                    }
+            pendingActions_.push_back([shape, faceShapes, vis](OcctViewer* v) {
+                if (vis) v->displayShape(shape, false);
+                else     v->removeShape(shape, false);
+                for (auto& fs : faceShapes) {
+                    if (vis) v->displayShape(fs, false);
+                    else     v->removeShape(fs, false);
                 }
             });
         }
@@ -411,6 +404,7 @@ void Viewer::drawObjectPanel() {
                         v->removeShape(ff, false);
                     });
                 }
+                snprintf(statusMsg_, sizeof(statusMsg_), "Deleted '%s'", entry.name.c_str());
                 entry.aisShape.Nullify();
                 entry.faces.clear();
                 ImGui::CloseCurrentPopup();
@@ -466,20 +460,25 @@ void Viewer::drawObjectPanel() {
     ImGui::Text("Actions");
     ImGui::Separator();
 
-    if (ImGui::Button("Fit All", ImVec2(-1, 0)))
+    if (ImGui::Button("Fit All", ImVec2(-1, 0))) {
         fitAll();
+        snprintf(statusMsg_, sizeof(statusMsg_), "Fit All");
+    }
 
     if (ImGui::Button("Show All", ImVec2(-1, 0))) {
         for (auto& entry : shapes_) {
             if (entry.visible) continue;
             entry.visible = true;
             for (auto& f : entry.faces) { f.visible = true; }
+            auto shape = entry.aisShape;
             std::vector<Handle(AIS_Shape)> faceShapes;
             for (auto& f : entry.faces) faceShapes.push_back(f.aisFace);
-            pendingActions_.push_back([faceShapes](OcctViewer* v) {
+            pendingActions_.push_back([shape, faceShapes, showFaces = showFaces_](OcctViewer* v) {
+                if (!showFaces) v->displayShape(shape, false);
                 for (auto& fs : faceShapes) v->displayShape(fs, false);
             });
         }
+        snprintf(statusMsg_, sizeof(statusMsg_), "Show All");
     }
 
     if (ImGui::Button("Hide All", ImVec2(-1, 0))) {
@@ -487,12 +486,15 @@ void Viewer::drawObjectPanel() {
             if (!entry.visible) continue;
             entry.visible = false;
             for (auto& f : entry.faces) { f.visible = false; }
+            auto shape = entry.aisShape;
             std::vector<Handle(AIS_Shape)> faceShapes;
             for (auto& f : entry.faces) faceShapes.push_back(f.aisFace);
-            pendingActions_.push_back([faceShapes](OcctViewer* v) {
+            pendingActions_.push_back([shape, faceShapes](OcctViewer* v) {
+                v->removeShape(shape, false);
                 for (auto& fs : faceShapes) v->removeShape(fs, false);
             });
         }
+        snprintf(statusMsg_, sizeof(statusMsg_), "Hide All");
     }
 
     if (ImGui::Button("Delete All", ImVec2(-1, 0)))
@@ -500,6 +502,7 @@ void Viewer::drawObjectPanel() {
     if (ImGui::BeginPopupModal("Delete All?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::Text("Remove all %d shapes?", (int)shapes_.size());
         if (ImGui::Button("Yes", ImVec2(80, 0))) {
+            snprintf(statusMsg_, sizeof(statusMsg_), "Deleted %d shape(s)", (int)shapes_.size());
             for (auto& entry : shapes_) {
                 for (auto& f : entry.faces) {
                     auto ff = f.aisFace;
@@ -526,12 +529,16 @@ void Viewer::drawObjectPanel() {
     ImGui::Text("Tool");
     ImGui::Separator();
 
-    if (ImGui::Checkbox("Clipping", &sectionOn_))
+    if (ImGui::Checkbox("Clipping", &sectionOn_)) {
         pendingActions_.push_back([this](OcctViewer*) { updateClipPlane(); });
+        snprintf(statusMsg_, sizeof(statusMsg_), sectionOn_ ? "Clipping: On" : "Clipping: Off");
+    }
 
     if (sectionOn_) {
-        if (ImGui::Checkbox("Edit Clip", &clipEditOn_))
+        if (ImGui::Checkbox("Edit Clip", &clipEditOn_)) {
             pendingActions_.push_back([this](OcctViewer*) { updateClipPlane(); });
+            snprintf(statusMsg_, sizeof(statusMsg_), clipEditOn_ ? "Edit Clip: On" : "Edit Clip: Off");
+        }
 
         if (clipEditOn_) {
             OcctViewer* v = viewer();
