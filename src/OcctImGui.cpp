@@ -54,17 +54,7 @@
 
 namespace OcctImGui {
 
-void FaceEntry::setColor(float r, float g, float b) {
-    color[0] = r; color[1] = g; color[2] = b;
-    useCustomColor = true;
-    auto face = aisFace;
-    if (!face.IsNull()) {
-        Handle(Prs3d_ShadingAspect) a = new Prs3d_ShadingAspect();
-        a->SetColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
-        face->Attributes()->SetShadingAspect(a);
-        face->Redisplay(false);
-    }
-}
+// FaceEntry::setColor removed — use Viewer::setFaceColor with AIS_ColoredShape
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -104,7 +94,9 @@ void Viewer::setFaceColor(int shapeIdx, int faceId, float r, float g, float b) {
     auto& entry = shapes_[shapeIdx];
     for (auto& f : entry.faces) {
         if (f.id == faceId) {
-            f.setColor(r, g, b);
+            f.color[0]=r; f.color[1]=g; f.color[2]=b; f.useCustomColor=true;
+            auto cs = Handle(AIS_ColoredShape)::DownCast(entry.aisShape);
+            if (!cs.IsNull()) cs->SetCustomColor(f.topoFace, Quantity_Color(r,g,b,Quantity_TOC_RGB));
             return;
         }
     }
@@ -124,10 +116,11 @@ void Viewer::importFile(const char* path) {
             return;
         }
         float r = 0.7f, g = 0.7f, b = 0.7f;
-        Handle(AIS_Shape) ais = new AIS_Shape(shape);
-        Handle(Prs3d_ShadingAspect) aspect = new Prs3d_ShadingAspect();
-        aspect->SetColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
-        ais->Attributes()->SetShadingAspect(aspect);
+        Handle(AIS_ColoredShape) ais = new AIS_ColoredShape(shape);
+        ais->SetColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
+        ais->Attributes()->SetFaceBoundaryDraw(true);
+    ais->Attributes()->SetFaceBoundaryAspect(
+        new Prs3d_LineAspect(Quantity_NOC_BLACK, Aspect_TOL_SOLID, 1.0));
         const char* name = strrchr(p.c_str(), '/');
 #ifdef _WIN32
         const char* bs = strrchr(p.c_str(), '\\');
@@ -139,10 +132,7 @@ void Viewer::importFile(const char* path) {
         buf[sizeof(buf) - 1] = '\0';
         auto& entry = shapes_.emplace_back(ais, buf, true, r, g, b);
         extractFaces(entry, shape, r, g, b);
-        if (!showFaces_)
-            v->displayShape(ais);
-        else
-            for (auto& f : entry.faces) v->displayShape(f.aisFace, false);
+        v->displayShape(ais);
         v->setSelectionMode(selectionMode_);
         snprintf(statusMsg_, sizeof(statusMsg_), "Imported %s (%d faces)", buf, (int)entry.faces.size());
         nextId_++;
@@ -159,14 +149,19 @@ void Viewer::init() {
     for (auto& ps : pendingShapes_) {
         Handle(AIS_Shape) ais = makeColoredShape(ps.shape, ps.r, ps.g, ps.b,
                                                  ps.tx, ps.ty, ps.tz);
-        viewer()->displayShape(ais, false);
         auto& entry = shapes_[ps.shapeIdx];
         entry.aisShape = ais;
-        for (auto& f : entry.faces)
-            viewer()->displayShape(f.aisFace, false);
+        // Apply saved custom face colors BEFORE display
+        auto cs = Handle(AIS_ColoredShape)::DownCast(ais);
+        if (!cs.IsNull()) {
+            for (auto& f : entry.faces) {
+                if (f.useCustomColor)
+                    cs->SetCustomColor(f.topoFace, Quantity_Color(f.color[0], f.color[1], f.color[2], Quantity_TOC_RGB));
+            }
+        }
+        viewer()->displayShape(ais, false);
     }
     pendingShapes_.clear();
-    syncShapeDisplay();
 
     if (!shapes_.empty())
         viewer()->fitAll();
@@ -269,20 +264,7 @@ void Viewer::drawObjectPanel() {
     ImGui::Text("View");
     ImGui::Separator();
 
-    // Display mode
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Display");
-    ImGui::SameLine(80);
-    ImGui::PushItemWidth(-1);
-    const char* dispModes[] = { "Model", "Faces" };
-    int dispCur = showFaces_ ? 1 : 0;
-    if (ImGui::Combo("##display", &dispCur, dispModes, 2)) {
-        showFaces_ = (dispCur == 1);
-        syncShapeDisplay();
-        viewer()->setSelectionMode(selectionMode_);
-        snprintf(statusMsg_, sizeof(statusMsg_), "Display: %s", dispModes[dispCur]);
-    }
-    ImGui::PopItemWidth();
+    // Display mode combo removed — AIS_ColoredShape handles both Model and Faces
 
     // Selection mode
     ImGui::AlignTextToFramePadding();
@@ -323,7 +305,7 @@ void Viewer::drawObjectPanel() {
         // ── Parent model row ──
         bool expanded = entry.facesExpanded;
         bool hasFaces = !entry.faces.empty();
-        if (hasFaces && showFaces_) {
+        if (hasFaces) {
             ImGui::AlignTextToFramePadding();
             if (ImGui::ArrowButton("##expand", expanded ?
                 ImGuiDir_Down : ImGuiDir_Right)) {
@@ -340,19 +322,10 @@ void Viewer::drawObjectPanel() {
 
         if (ImGui::Checkbox("##vis", &entry.visible)) {
             bool vis = entry.visible;
-            bool sf = showFaces_;
             for (auto& f : entry.faces) f.visible = vis;
-            auto shape = entry.aisShape;
-            std::vector<Handle(AIS_Shape)> faceShapes;
-            for (auto& f : entry.faces) faceShapes.push_back(f.aisFace);
-            pendingActions_.push_back([shape, faceShapes, vis, sf](OcctViewer* v) {
-                if (vis) {
-                    if (!sf) v->displayShape(shape, false);
-                    else for (auto& fs : faceShapes) v->displayShape(fs, false);
-                } else {
-                    v->removeShape(shape, false);
-                    for (auto& fs : faceShapes) v->removeShape(fs, false);
-                }
+            pendingActions_.push_back([shape = entry.aisShape, vis](OcctViewer* v) {
+                if (vis) v->displayShape(shape, false);
+                else     v->removeShape(shape, false);
             });
         }
         ImGui::SameLine();
@@ -374,18 +347,16 @@ void Viewer::drawObjectPanel() {
                 f.color[0] = r; f.color[1] = g; f.color[2] = b;
                 f.useCustomColor = false;
             }
-            std::vector<Handle(AIS_Shape)> faceShapes;
-            for (auto& f : entry.faces) faceShapes.push_back(f.aisFace);
-            pendingActions_.push_back([shape, faceShapes, r, g, b](OcctViewer* v) {
-                Handle(Prs3d_ShadingAspect) a = new Prs3d_ShadingAspect();
-                a->SetColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
-                shape->Attributes()->SetShadingAspect(a);
-                shape->Redisplay(false);
-                for (auto& fs : faceShapes) {
-                    Handle(Prs3d_ShadingAspect) fa = new Prs3d_ShadingAspect();
-                    fa->SetColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
-                    fs->Attributes()->SetShadingAspect(fa);
-                    fs->Redisplay(false);
+            // faceShapes removed (AIS_ColoredShape renders faces)
+            // Re-apply uniform color to all faces
+            std::vector<TopoDS_Face> allFaces;
+            for (auto& f : entry.faces) allFaces.push_back(f.topoFace);
+            pendingActions_.push_back([cs = Handle(AIS_ColoredShape)::DownCast(entry.aisShape),
+                                      allFaces, r, g, b](OcctViewer* v) {
+                if (!cs.IsNull()) {
+                    cs->SetColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
+                    for (auto& tf : allFaces)
+                        cs->SetCustomColor(tf, Quantity_Color(r, g, b, Quantity_TOC_RGB));
                 }
             });
         }
@@ -426,12 +397,7 @@ void Viewer::drawObjectPanel() {
                 pendingActions_.push_back([shape](OcctViewer* v) {
                     v->removeShape(shape, true);
                 });
-                for (auto& f : entry.faces) {
-                    auto ff = f.aisFace;
-                    pendingActions_.push_back([ff](OcctViewer* v) {
-                        v->removeShape(ff, false);
-                    });
-                }
+                // face removal handled by parent AIS_ColoredShape
                 snprintf(statusMsg_, sizeof(statusMsg_), "Deleted '%s'", entry.name.c_str());
                 entry.aisShape.Nullify();
                 entry.faces.clear();
@@ -444,7 +410,7 @@ void Viewer::drawObjectPanel() {
         }
 
         // ── Expand: face sub-objects ──
-        if (showFaces_ && expanded) {
+        if (expanded) {
             for (auto& f : entry.faces) {
                 ImGui::PushID(1000 + f.id);
                 ImGui::AlignTextToFramePadding();
@@ -453,13 +419,8 @@ void Viewer::drawObjectPanel() {
                 snprintf(faceLabel, sizeof(faceLabel), "Face %d", f.id);
                 ImGui::TextUnformatted(faceLabel);
                 ImGui::SameLine();
-                if (ImGui::Checkbox("##fvis", &f.visible)) {
-                    bool vis = f.visible;
-                    pendingActions_.push_back([face = f.aisFace, vis](OcctViewer* v) {
-                        if (vis) v->displayShape(face, false);
-                        else     v->removeShape(face, false);
-                    });
-                }
+                ImGui::Checkbox("##fvis", &f.visible);
+                // Face visibility via AIS_ColoredShape::SetCustomColor (TODO)
                 ImGui::SameLine();
                 if (ImGui::ColorEdit3("##fcolor", f.color,
                     ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel)) {
@@ -468,11 +429,10 @@ void Viewer::drawObjectPanel() {
                     entry.color[1] = f.color[1];
                     entry.color[2] = f.color[2];
                     float fr = f.color[0], fg = f.color[1], fb = f.color[2];
-                    pendingActions_.push_back([face = f.aisFace, fr, fg, fb](OcctViewer* v) {
-                        Handle(Prs3d_ShadingAspect) a = new Prs3d_ShadingAspect();
-                        a->SetColor(Quantity_Color(fr, fg, fb, Quantity_TOC_RGB));
-                        face->Attributes()->SetShadingAspect(a);
-                        face->Redisplay(false);
+                    pendingActions_.push_back([cs = Handle(AIS_ColoredShape)::DownCast(entry.aisShape),
+                                              tf = f.topoFace, fr, fg, fb](OcctViewer* v) {
+                        if (!cs.IsNull())
+                            cs->SetCustomColor(tf, Quantity_Color(fr, fg, fb, Quantity_TOC_RGB));
                     });
                 }
                 ImGui::Unindent(16.0f);
@@ -498,13 +458,8 @@ void Viewer::drawObjectPanel() {
             if (entry.visible) continue;
             entry.visible = true;
             for (auto& f : entry.faces) f.visible = true;
-            bool sf = showFaces_;
-            auto shape = entry.aisShape;
-            std::vector<Handle(AIS_Shape)> faceShapes;
-            for (auto& f : entry.faces) faceShapes.push_back(f.aisFace);
-            pendingActions_.push_back([shape, faceShapes, sf](OcctViewer* v) {
-                if (!sf) v->displayShape(shape, false);
-                else for (auto& fs : faceShapes) v->displayShape(fs, false);
+            pendingActions_.push_back([shape = entry.aisShape](OcctViewer* v) {
+                v->displayShape(shape, false);
             });
         }
         snprintf(statusMsg_, sizeof(statusMsg_), "Show All");
@@ -515,12 +470,8 @@ void Viewer::drawObjectPanel() {
             if (!entry.visible) continue;
             entry.visible = false;
             for (auto& f : entry.faces) f.visible = false;
-            auto shape = entry.aisShape;
-            std::vector<Handle(AIS_Shape)> faceShapes;
-            for (auto& f : entry.faces) faceShapes.push_back(f.aisFace);
-            pendingActions_.push_back([shape, faceShapes](OcctViewer* v) {
+            pendingActions_.push_back([shape = entry.aisShape](OcctViewer* v) {
                 v->removeShape(shape, false);
-                for (auto& fs : faceShapes) v->removeShape(fs, false);
             });
         }
         snprintf(statusMsg_, sizeof(statusMsg_), "Hide All");
@@ -533,12 +484,7 @@ void Viewer::drawObjectPanel() {
         if (ImGui::Button("Yes", ImVec2(80, 0))) {
             snprintf(statusMsg_, sizeof(statusMsg_), "Deleted %d shape(s)", (int)shapes_.size());
             for (auto& entry : shapes_) {
-                for (auto& f : entry.faces) {
-                    auto ff = f.aisFace;
-                    pendingActions_.push_back([ff](OcctViewer* v) {
-                        v->removeShape(ff, false);
-                    });
-                }
+                // face removal handled by parent AIS_ColoredShape
                 auto shape = entry.aisShape;
                 pendingActions_.push_back([shape](OcctViewer* v) {
                     v->removeShape(shape, true);
@@ -764,49 +710,27 @@ void Viewer::drawOverlay() {
     if (prevCull)   glEnable(GL_CULL_FACE);
 }
 
-void Viewer::syncShapeDisplay() {
-    for (auto& entry : shapes_) {
-        if (!showFaces_) {
-            if (entry.visible) viewer()->displayShape(entry.aisShape, false);
-            for (auto& f : entry.faces) viewer()->removeShape(f.aisFace, false);
-        } else {
-            viewer()->removeShape(entry.aisShape, false);
-            for (auto& f : entry.faces)
-                if (entry.visible && f.visible) viewer()->displayShape(f.aisFace, false);
-        }
-    }
-    viewer()->updateViewer();
-}
-
 void Viewer::extractFaces(ShapeEntry& entry, const TopoDS_Shape& shape,
                            float r, float g, float b,
-                           double tx, double ty, double tz) {
+                           double, double, double) {
     entry.faces.clear();
     int id = 0;
     for (TopExp_Explorer exp(shape, TopAbs_FACE); exp.More(); exp.Next()) {
         TopoDS_Face face = TopoDS::Face(exp.Current());
-        Handle(AIS_Shape) faceAis = new AIS_Shape(face);
-        Handle(Prs3d_ShadingAspect) aspect = new Prs3d_ShadingAspect();
-        aspect->SetColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
-        faceAis->Attributes()->SetShadingAspect(aspect);
-        if (tx != 0 || ty != 0 || tz != 0) {
-            gp_Trsf trsf;
-            trsf.SetTranslation(gp_Vec(tx, ty, tz));
-            faceAis->SetLocalTransformation(trsf);
-        }
-        entry.faces.emplace_back(faceAis, id++, r, g, b);
+        entry.faces.emplace_back(face, id++, r, g, b);
     }
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-Handle(AIS_Shape) Viewer::makeColoredShape(const TopoDS_Shape& shape,
-                                           float r, float g, float b,
-                                           double tx, double ty, double tz) {
-    Handle(AIS_Shape) ais = new AIS_Shape(shape);
-    Handle(Prs3d_ShadingAspect) aspect = new Prs3d_ShadingAspect();
-    aspect->SetColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
-    ais->Attributes()->SetShadingAspect(aspect);
+Handle(AIS_ColoredShape) Viewer::makeColoredShape(const TopoDS_Shape& shape,
+                                                  float r, float g, float b,
+                                                  double tx, double ty, double tz) {
+    Handle(AIS_ColoredShape) ais = new AIS_ColoredShape(shape);
+    ais->SetColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
+    ais->Attributes()->SetFaceBoundaryDraw(true);
+    ais->Attributes()->SetFaceBoundaryAspect(
+        new Prs3d_LineAspect(Quantity_NOC_BLACK, Aspect_TOL_SOLID, 1.0));
     if (tx != 0 || ty != 0 || tz != 0) {
         gp_Trsf trsf;
         trsf.SetTranslation(gp_Vec(tx, ty, tz));

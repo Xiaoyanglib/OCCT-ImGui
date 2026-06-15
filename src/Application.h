@@ -87,7 +87,6 @@ protected:
     bool showViewerPanel_ = true;
     bool showObjectPanel_ = true;
     int  selectionMode_   = AIS_Shape::SelectionMode(TopAbs_SHAPE);
-    bool showFaces_       = false;
     char statusMsg_[256]  = {};
     float bgColor_[3]     = {1.0f, 1.0f, 1.0f};
     bool  orthographic_   = true;

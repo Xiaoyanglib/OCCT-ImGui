@@ -23,7 +23,7 @@
 #pragma once
 
 #include "Application.h"
-#include <AIS_Shape.hxx>
+#include <AIS_ColoredShape.hxx>
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopExp_Explorer.hxx>
@@ -31,20 +31,16 @@
 
 namespace OcctImGui {
 
-/// Per-face sub-object with individual color and visibility control.
+/// Per-face metadata. Coloring via parent AIS_ColoredShape::SetCustomColor.
 struct FaceEntry {
-    Handle(AIS_Shape) aisFace;   ///< Displayable face shape
-    int   id = 0;                ///< Index from TopExp_Explorer order
+    TopoDS_Face topoFace;          ///< Face reference for SetCustomColor
+    int   id = 0;
     float color[3] = {0.7f, 0.7f, 0.7f};
-    bool  useCustomColor = false;///< True if user set a per-face color
+    bool  useCustomColor = false;
     bool  visible = true;
 
-    FaceEntry(const Handle(AIS_Shape)& f, int i, float r, float g, float b)
-        : aisFace(f), id(i), color{r, g, b} {}
-
-private:
-    void setColor(float r, float g, float b);
-    friend class Viewer;
+    FaceEntry(const TopoDS_Face& f, int i, float r, float g, float b)
+        : topoFace(f), id(i), color{r, g, b} {}
 };
 
 /// Main application class. Create one instance, call addShape / importFile,
@@ -115,11 +111,10 @@ private:
 
     void drawObjectPanel();
     void drawOverlay() override;
-    void syncShapeDisplay();
     void updateClipPlane();
-    Handle(AIS_Shape) makeColoredShape(const TopoDS_Shape& shape,
-                                       float r, float g, float b,
-                                       double tx = 0, double ty = 0, double tz = 0);
+    Handle(AIS_ColoredShape) makeColoredShape(const TopoDS_Shape& shape,
+                                              float r, float g, float b,
+                                              double tx = 0, double ty = 0, double tz = 0);
 
     std::vector<ShapeEntry> shapes_;
     std::vector<PendingShape> pendingShapes_;

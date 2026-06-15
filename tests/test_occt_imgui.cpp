@@ -64,7 +64,7 @@ TEST(OcctImGuiTest, ExportWithoutSelection) {
 }
 
 TEST(OcctImGuiTest, FaceEntryDefaultValues) {
-    Handle(AIS_Shape) dummy = new AIS_Shape(TopoDS_Shape());
+    TopoDS_Face dummy;
     OcctImGui::FaceEntry f(dummy, 5, 0.2f, 0.4f, 0.6f);
     EXPECT_EQ(f.id, 5);
     EXPECT_FALSE(f.useCustomColor);
@@ -75,7 +75,7 @@ TEST(OcctImGuiTest, FaceEntryDefaultValues) {
 }
 
 TEST(OcctImGuiTest, FaceCustomColorFlag) {
-    Handle(AIS_Shape) dummy = new AIS_Shape(TopoDS_Shape());
+    TopoDS_Face dummy;
     OcctImGui::FaceEntry f(dummy, 0, 0.5f, 0.5f, 0.5f);
     EXPECT_FALSE(f.useCustomColor);
     f.useCustomColor = true;
@@ -83,7 +83,7 @@ TEST(OcctImGuiTest, FaceCustomColorFlag) {
 }
 
 TEST(OcctImGuiTest, FaceEntryInitiallyOwnedByParent) {
-    Handle(AIS_Shape) dummy = new AIS_Shape(TopoDS_Shape());
+    TopoDS_Face dummy;
     OcctImGui::FaceEntry f(dummy, 3, 0.8f, 0.2f, 0.1f);
     EXPECT_FALSE(f.useCustomColor);
     EXPECT_TRUE(f.visible);
