@@ -328,7 +328,7 @@ void Viewer::drawObjectPanel() {
             for (auto& f : entry.faces) f.visible = vis;
             pendingActions_.push_back([shape = entry.aisShape, vis](OcctViewer* v) {
                 if (vis) v->displayShape(shape, false);
-                else     v->removeShape(shape, false);
+                else     v->context()->Erase(shape, false);
             });
         }
         ImGui::SameLine();
