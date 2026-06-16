@@ -474,7 +474,7 @@ void Viewer::drawObjectPanel() {
             entry.visible = false;
             for (auto& f : entry.faces) f.visible = false;
             pendingActions_.push_back([shape = entry.aisShape](OcctViewer* v) {
-                v->removeShape(shape, false);
+                v->context()->Erase(shape, false);
             });
         }
         snprintf(statusMsg_, sizeof(statusMsg_), "Hide All");
