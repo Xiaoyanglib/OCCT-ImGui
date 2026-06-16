@@ -284,7 +284,10 @@ void Viewer::drawObjectPanel() {
     }
     if (ImGui::Combo("##selmode", &selCur, selModes, 4)) {
         selectionMode_ = selVals[selCur];
-        viewer()->setSelectionMode(selectionMode_);
+        int mode = selectionMode_;
+        pendingActions_.push_back([mode](OcctViewer* v) {
+            v->setSelectionMode(mode);
+        });
         snprintf(statusMsg_, sizeof(statusMsg_), "Select: %s", selModes[selCur]);
     }
     ImGui::PopItemWidth();
