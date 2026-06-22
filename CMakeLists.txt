@@ -5,9 +5,19 @@ cmake_minimum_required(VERSION 3.20)
 
 project(occt-imgui VERSION 0.1.0 LANGUAGES C CXX)
 
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (Debug or Release)" FORCE)
+option(BUILD_TESTS "Build tests" ON)
+
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+  # standalone
+  if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (Debug or Release)" FORCE)
+  endif()
+else()
+  # as submodule
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Force Release build" FORCE)
+  set(BUILD_TESTS OFF)
 endif()
+message(STATUS CMAKE_BUILD_TYPE:${CMAKE_BUILD_TYPE})
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -46,7 +56,6 @@ add_subdirectory(app)
 ###############################################################################
 # Tests
 ###############################################################################
-option(BUILD_TESTS "Build tests" ON)
 if(BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)
