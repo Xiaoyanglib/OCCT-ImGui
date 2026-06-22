@@ -13,13 +13,13 @@ target_sources(${CURRENT_LIB_NAME}
 
 target_include_directories(${CURRENT_LIB_NAME}
         INTERFACE
-        ${CMAKE_SOURCE_DIR}/include/
+        ${PROJECT_SOURCE_DIR}/include/
 )
 target_include_directories(${CURRENT_LIB_NAME}
         PRIVATE
-        ${CMAKE_SOURCE_DIR}/include/OcctImGui/
-        ${CMAKE_SOURCE_DIR}/src/
-        ${CMAKE_SOURCE_DIR}/third_party/imoguizmo/
+        ${PROJECT_SOURCE_DIR}/include/OcctImGui/
+        ${PROJECT_SOURCE_DIR}/src/
+        ${PROJECT_SOURCE_DIR}/third_party/imoguizmo/
 )
 
 target_link_libraries(${CURRENT_LIB_NAME}
@@ -32,7 +32,7 @@ target_link_libraries(${CURRENT_LIB_NAME}
 
 target_compile_definitions(${CURRENT_LIB_NAME}
         PRIVATE
-        FONTS_DIR="${CMAKE_SOURCE_DIR}/src/fonts"
+        FONTS_DIR="${PROJECT_SOURCE_DIR}/src/fonts"
 )
 
 if(WIN32)

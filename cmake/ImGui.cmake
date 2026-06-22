@@ -1,5 +1,5 @@
 if(NOT TARGET imgui)
-  set(imgui_SOURCE_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui)
+  set(imgui_SOURCE_DIR ${PROJECT_SOURCE_DIR}/third_party/imgui)
 
   add_library(imgui STATIC
     ${imgui_SOURCE_DIR}/imgui.cpp
@@ -12,7 +12,7 @@ if(NOT TARGET imgui)
   )
 
   target_include_directories(imgui PUBLIC
-    ${CMAKE_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/src
     ${imgui_SOURCE_DIR}
     ${imgui_SOURCE_DIR}/backends
   )
