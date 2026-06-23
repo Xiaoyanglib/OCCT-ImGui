@@ -269,8 +269,18 @@ void Application::initImGui() {
     float fontSize = 18.0f;
     float loadedFontSize = fontSize * hidpi / pixelRatio_;
 
-    std::string fontPath = std::string(FONTS_DIR) + "/Roboto-SemiBold.ttf";
+    std::string fontPath = std::string(FONTS_DIR) + "/Roboto/static/Roboto-SemiBold.ttf";
     io.Fonts->AddFontFromFileTTF(fontPath.c_str(), loadedFontSize);
+
+    // Merge CJK glyphs from LXGW WenKai for Chinese text support.
+    // CJK characters pack more strokes per em — render 2 px larger so they
+    // appear visually balanced alongside Roboto SemiBold.
+    ImFontConfig cjkCfg;
+    cjkCfg.MergeMode = true;
+    cjkCfg.PixelSnapH = true;
+    cjkCfg.SizePixels = loadedFontSize + 2.0f;
+    std::string cjkPath = std::string(FONTS_DIR) + "/LXGW_WenKai_TC/LXGWWenKaiTC-Bold.ttf";
+    io.Fonts->AddFontFromFileTTF(cjkPath.c_str(), loadedFontSize + 2.0f, &cjkCfg);
 
     // UI scaling = font_size / 16 * hidpi / pixel_ratio
     fontScale_ = fontSize / 16.0f * hidpi / pixelRatio_;
