@@ -101,6 +101,22 @@ Set `OpenCASCADE_DIR` to the directory containing `OpenCASCADEConfig.cmake`:
 - **Pre-built binaries (Windows):** `<occt-install>/cmake`
 - **Homebrew (macOS):** `$(brew --prefix opencascade)/lib/cmake/opencascade`
 
+### Integration
+
+To use this project as a **submodule** in your own project, follow these steps:
+1. Add the submodule:
+
+    ```bash
+   git submodule add https://github.com/Xiaoyanglib/OCCT-ImGui.git [SubmoduleDir]
+   git submodule update --init --recursive
+    ```
+   
+2. Configure and link the library:
+    ```bash
+    add_subdirectory([SubmoduleDir])
+   target_link_libraries([Project] PRIVATE OcctImGui)
+    ```
+
 ## 🎮 Controls
 
 | Action | Input |

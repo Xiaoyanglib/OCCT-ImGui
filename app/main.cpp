@@ -22,7 +22,7 @@
 
 /// Demo application: creates a viewer with three sample shapes and starts the event loop.
 
-#include "OcctImGui.h"   // Viewer class with full UI + 3D viewer framework
+#include "../include/OcctImGui/OcctImGui.h"
 
 // OCCT primitive shape builders for the demo scene
 #include <BRepPrimAPI_MakeBox.hxx>       // Box shape
@@ -36,7 +36,7 @@ int main() {
     // ── Box (40×40×40) at origin ─────────────────────────────────────
     // Create a cube. BRepPrimAPI_MakeBox builds a box with 6 faces.
     // addShape returns an index for later face-color customization.
-    int boxIdx = app.addShape(
+    const int boxIdx = app.addShape(
         BRepPrimAPI_MakeBox(40, 40, 40).Shape(),   // OCCT TopoDS_Shape
         0.7f, 0.7f, 0.7f,                          // default metallic gray
         "Box",                                       // name in Objects panel
@@ -64,7 +64,7 @@ int main() {
         80, 0, 0);   // shifted +80 on X
 
     // Add a cylinder of radius 20 and height 60, offset to the left
-    int cylIdx = app.addShape(
+    const int cylIdx = app.addShape(
         BRepPrimAPI_MakeCylinder(20, 60).Shape(),
         0.7f, 0.7f, 0.7f,
         "Cylinder",

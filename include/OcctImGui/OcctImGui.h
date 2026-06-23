@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "Application.h"
+#include "../../src/Application.h"
 #include <AIS_ColoredShape.hxx>
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Face.hxx>

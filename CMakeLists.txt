@@ -5,9 +5,19 @@ cmake_minimum_required(VERSION 3.20)
 
 project(occt-imgui VERSION 0.1.0 LANGUAGES C CXX)
 
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (Debug or Release)" FORCE)
+option(BUILD_TESTS "Build tests" ON)
+
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+  # standalone
+  if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (Debug or Release)" FORCE)
+  endif()
+else()
+  # as submodule
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Force Release build" FORCE)
+  set(BUILD_TESTS OFF)
 endif()
+message(STATUS CMAKE_BUILD_TYPE:${CMAKE_BUILD_TYPE})
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -35,72 +45,17 @@ include(Dependencies)
 ###############################################################################
 # occt-imgui library
 ###############################################################################
-set(LIB_SOURCES
-  src/Application.cpp
-  src/OcctViewer.cpp
-  src/OcctWindow.cpp
-  src/OcctImGui.cpp
-)
-
-set(LIB_HEADERS
-  src/OcctImConfig.h
-  src/Application.h
-  src/OcctViewer.h
-  src/OcctWindow.h
-  src/OcctImGui.h
-)
-
-add_library(OcctImGui STATIC ${LIB_SOURCES} ${LIB_HEADERS})
-
-target_compile_definitions(OcctImGui PRIVATE
-  FONTS_DIR="${CMAKE_SOURCE_DIR}/src/fonts"
-)
-if(WIN32)
-  target_compile_definitions(OcctImGui PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
-endif()
-
-add_library(glad STATIC ${CMAKE_SOURCE_DIR}/third_party/glad/src/glad.c)
-target_include_directories(glad PUBLIC ${CMAKE_SOURCE_DIR}/third_party/glad/include)
-
-target_include_directories(OcctImGui PUBLIC
-  ${CMAKE_SOURCE_DIR}/src
-  ${CMAKE_SOURCE_DIR}/third_party/imoguizmo
-)
-
-target_link_libraries(OcctImGui PUBLIC
-  imgui
-  glfw
-  glad
-  OpenCASCADE::OpenCASCADE
-)
-
-if(APPLE)
-  target_link_libraries(OcctImGui PUBLIC
-    "-framework OpenGL"
-    "-framework Cocoa"
-    "-framework IOKit"
-  )
-endif()
-
-if(MSVC)
-  target_compile_options(OcctImGui PRIVATE /EHsc)
-else()
-  target_compile_options(OcctImGui PRIVATE
-    -fexceptions
-    -Wno-elaborated-enum-base
-  )
-endif()
+add_subdirectory(src)
+add_subdirectory(third_party)
 
 ###############################################################################
 # Demo executable
 ###############################################################################
-add_executable(OcctImGuiDemo src/main.cpp)
-target_link_libraries(OcctImGuiDemo PRIVATE OcctImGui)
+add_subdirectory(app)
 
 ###############################################################################
 # Tests
 ###############################################################################
-option(BUILD_TESTS "Build tests" ON)
 if(BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)

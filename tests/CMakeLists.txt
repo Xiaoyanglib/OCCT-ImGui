@@ -1,4 +1,4 @@
-add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/googletest ${CMAKE_BINARY_DIR}/googletest
+add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/googletest ${CMAKE_BINARY_DIR}/googletest
   EXCLUDE_FROM_ALL)
 
 add_executable(OcctImGuiTests
@@ -6,7 +6,7 @@ add_executable(OcctImGuiTests
 )
 
 target_include_directories(OcctImGuiTests PRIVATE
-  ${CMAKE_SOURCE_DIR}/src
+  ${PROJECT_SOURCE_DIR}/src
 )
 
 target_link_libraries(OcctImGuiTests PRIVATE
