@@ -9,12 +9,10 @@ option(BUILD_TESTS "Build tests" ON)
 
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   # standalone
-  if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (Debug or Release)" FORCE)
-  endif()
+  # do nothing...
 else()
   # as submodule
-  set(CMAKE_BUILD_TYPE Release CACHE STRING "Force Release build" FORCE)
+  message(STATUS "Project OCCT-ImGui is built as a submodule.")
   set(BUILD_TESTS OFF)
 endif()
 message(STATUS CMAKE_BUILD_TYPE:${CMAKE_BUILD_TYPE})
