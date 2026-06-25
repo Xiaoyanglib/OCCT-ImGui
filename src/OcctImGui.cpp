@@ -142,10 +142,22 @@ void Viewer::importFile(const char* path) {
             snprintf(statusMsg_, sizeof(statusMsg_), "Import failed: %s", p.c_str());
             return;
         }
+        // Apply plastic VisMaterial to the imported doc so DispatchStyles picks it up
+        if (!xcafDoc.IsNull() && !xcafLabel.IsNull()) {
+            XCAFDoc_VisMaterialCommon cm;
+            cm.DiffuseColor  = Quantity_Color(0.7f, 0.7f, 0.7f, Quantity_TOC_RGB);
+            cm.AmbientColor  = Quantity_Color(0.14f, 0.14f, 0.14f, Quantity_TOC_RGB);
+            cm.SpecularColor = Quantity_Color(0.5f, 0.5f, 0.5f, Quantity_TOC_RGB);
+            cm.Shininess     = 0.6f;
+            Handle(XCAFDoc_VisMaterial) mat = new XCAFDoc_VisMaterial();
+            mat->SetCommonMaterial(cm);
+            Handle(XCAFDoc_VisMaterialTool) mt =
+                XCAFDoc_DocumentTool::VisMaterialTool(xcafDoc->Main());
+            TDF_Label matLabel = mt->AddMaterial(mat, "Plastic");
+            mt->SetShapeMaterial(xcafLabel, matLabel);
+        }
+
         Handle(AIS_ColoredShape) ais = new XCAFPrs_AISObject(xcafLabel);
-        Handle(Prs3d_ShadingAspect) sa = new Prs3d_ShadingAspect();
-        sa->SetColor(Quantity_Color(0.7f, 0.7f, 0.7f, Quantity_TOC_RGB));
-        ais->Attributes()->SetShadingAspect(sa);
         ais->Attributes()->SetFaceBoundaryDraw(true);
     ais->Attributes()->SetFaceBoundaryAspect(
         new Prs3d_LineAspect(Quantity_NOC_BLACK, Aspect_TOL_SOLID, 1.0));
@@ -805,9 +817,9 @@ Handle(AIS_ColoredShape) Viewer::makeColoredShape(const TopoDS_Shape& shape,
     TDF_Label shapeLabel = st->AddShape(shape);
     XCAFDoc_VisMaterialCommon cm;
     cm.DiffuseColor  = Quantity_Color(r, g, b, Quantity_TOC_RGB);
-    cm.AmbientColor  = Quantity_Color(r*0.3f, g*0.3f, b*0.3f, Quantity_TOC_RGB);
-    cm.SpecularColor = Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB);
-    cm.Shininess     = 0.0f;
+    cm.AmbientColor  = Quantity_Color(r*0.2f, g*0.2f, b*0.2f, Quantity_TOC_RGB);
+    cm.SpecularColor = Quantity_Color(0.5f, 0.5f, 0.5f, Quantity_TOC_RGB);
+    cm.Shininess     = 0.6f;
     Handle(XCAFDoc_VisMaterial) mat = new XCAFDoc_VisMaterial();
     mat->SetCommonMaterial(cm);
     Handle(XCAFDoc_VisMaterialTool) mt =
