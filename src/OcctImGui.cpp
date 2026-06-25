@@ -218,10 +218,7 @@ void Viewer::drawGui() {
 
     float gizmoSize = 120.0f;
     ImVec2 vpSize = ImGui::GetMainViewport()->Size;
-    float topY = 28.0f;
-    if (ImGui::GetMainViewport()->WorkPos.y > topY)
-        topY = ImGui::GetMainViewport()->WorkPos.y + 4.0f;
-    ImOGuizmo::SetRect(vpSize.x - gizmoSize - 8.0f, topY, gizmoSize);
+    ImOGuizmo::SetRect(vpSize.x - gizmoSize - 8.0f, 28.0f, gizmoSize);
 
     // Scale down axis length and drag sensitivity for our projection setup.
     // Default axisLengthScale=0.33 projects axes ~97 px (beyond the 60 px radius).
