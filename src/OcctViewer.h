@@ -28,12 +28,23 @@
 #include <V3d_Viewer.hxx>
 #include <OpenGl_GraphicDriver.hxx>
 #include <TopoDS_Shape.hxx>
+#include <TopoDS_Face.hxx>
 #include <NCollection_List.hxx>
 #include <Aspect_Window.hxx>
 #include <Graphic3d_ClipPlane.hxx>
 #include <gp_Pln.hxx>
 
+#include <vector>
+
+#include <TDocStd_Document.hxx>
+#include <TDF_Label.hxx>
+
 struct GLFWwindow;
+
+struct FaceColorInfo {
+    TopoDS_Face face;
+    float r, g, b;
+};
 
 /// Low-level OCCT 3D viewer wrapper. Manages the AIS context, camera,
 /// scene objects, and clip planes. Wraps GLFW window into OCCT's Aspect_Window.
@@ -80,11 +91,16 @@ public:
 
     // ── Import / export ─────────────────────────────────────────────────
 
-    /// Read a CAD file and return the shape (does not add to scene).
-    TopoDS_Shape importShape(const char* path);
+    /// Read a CAD file. outXcafLabel+outXcafDoc are set when outColors is non-null.
+    TopoDS_Shape importShape(const char* path,
+                              std::vector<FaceColorInfo>* outColors = nullptr,
+                              TDF_Label* outXcafLabel = nullptr,
+                              Handle(TDocStd_Document)* outXcafDoc = nullptr);
 
-    /// Write a shape to a CAD file.
-    bool exportShape(const TopoDS_Shape& shape, const char* path);
+    /// Write a shape to a CAD file. If colors is non-null, writes per-face
+    /// colors for STEP/IGES (ignored for BREP/STL).
+    bool exportShape(const TopoDS_Shape& shape, const char* path,
+                      const std::vector<FaceColorInfo>* colors = nullptr);
 
     /// Get currently selected shapes.
     void getSelectedShapes(NCollection_List<TopoDS_Shape>& outList);

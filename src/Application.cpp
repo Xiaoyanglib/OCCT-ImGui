@@ -487,7 +487,7 @@ void Application::mainLoop() {
 
         guiWantsMouse_ = ImGui::GetIO().WantCaptureMouse;
 
-        glfwSwapBuffers(window_);  // swap BEFORE postFrame — don't block display
+        glfwSwapBuffers(window_);
         glfwMakeContextCurrent(window_);
         postFrame();
     }

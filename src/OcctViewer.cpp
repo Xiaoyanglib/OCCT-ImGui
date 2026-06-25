@@ -58,9 +58,13 @@
 
 #include <STEPControl_Reader.hxx>
 #include <STEPControl_Writer.hxx>
+#include <STEPCAFControl_Reader.hxx>
+#include <STEPCAFControl_Writer.hxx>
 #include <IGESControl_Reader.hxx>
 #include <IGESControl_Writer.hxx>
 #include <IGESControl_Controller.hxx>
+#include <IGESCAFControl_Reader.hxx>
+#include <IGESCAFControl_Writer.hxx>
 #include <BRepTools.hxx>
 #include <BRep_Builder.hxx>
 #include <StlAPI_Reader.hxx>
@@ -69,7 +73,18 @@
 #include <Bnd_Box.hxx>
 #include <Graphic3d_Camera.hxx>
 #include <Graphic3d_ClipPlane.hxx>
+#include <Graphic3d_TypeOfShadingModel.hxx>
 #include <gp_Pln.hxx>
+
+#include <TDocStd_Document.hxx>
+#include <TDF_LabelSequence.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <XCAFDoc_ShapeTool.hxx>
+#include <XCAFDoc_ColorTool.hxx>
+#include <XCAFPrs.hxx>
+#include <TopTools_ShapeMapHasher.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopoDS.hxx>
 
 #include <cstdio>
 #include <cstring>
@@ -104,6 +119,7 @@ OcctViewer::OcctViewer(GLFWwindow* glfwWindow)
     view_->MustBeResized();
 
     view_->SetBackgroundColor(Quantity_NOC_WHITE);
+    view_->SetShadingModel(V3d_PHONG);
     view_->MustBeResized();
     view_->Camera()->SetEyeAndCenter(gp_Pnt(200, 150, 200), gp_Pnt(0, 0, 0));
     view_->Camera()->SetUp(gp_Dir(0, 0, 1));
@@ -372,21 +388,86 @@ static bool extIs(const char* ext, const char* a, const char* b = nullptr) {
 #endif
 }
 
-TopoDS_Shape OcctViewer::importShape(const char* path) {
+static void extractColorsFromDoc(const TDF_Label& shapeLabel,
+                                  const TopoDS_Shape& xcafShape,
+                                  std::vector<FaceColorInfo>& outColors) {
+    NCollection_IndexedDataMap<TopoDS_Shape, XCAFPrs_Style, TopTools_ShapeMapHasher> settings;
+    TopLoc_Location loc;
+    XCAFPrs::CollectStyleSettings(shapeLabel, loc, settings);
+    for (TopExp_Explorer exp(xcafShape, TopAbs_FACE); exp.More(); exp.Next()) {
+        TopoDS_Face face = TopoDS::Face(exp.Current());
+        float fr = 0.7f, fg = 0.7f, fb = 0.7f;
+        int idx = settings.FindIndex(face);
+        if (idx > 0) {
+            const XCAFPrs_Style& stl = settings.FindFromIndex(idx);
+            if (stl.IsSetColorSurf()) {
+                Quantity_ColorRGBA c = stl.GetColorSurfRGBA();
+                fr = (float)c.GetRGB().Red();
+                fg = (float)c.GetRGB().Green();
+                fb = (float)c.GetRGB().Blue();
+            } else if (!stl.Material().IsNull() && stl.Material()->HasPbrMaterial()) {
+                Quantity_ColorRGBA c = stl.Material()->PbrMaterial().BaseColor;
+                fr = (float)c.GetRGB().Red();
+                fg = (float)c.GetRGB().Green();
+                fb = (float)c.GetRGB().Blue();
+            }
+        }
+        outColors.push_back({face, fr, fg, fb});
+    }
+    for (auto& fc : outColors)
+        fc.face.Nullify();
+}
+
+TopoDS_Shape OcctViewer::importShape(const char* path,
+                                      std::vector<FaceColorInfo>* outColors,
+                                      TDF_Label* outXcafLabel,
+                                      Handle(TDocStd_Document)* outXcafDoc) {
     TopoDS_Shape result;
     const char* ext = fileExt(path);
     if (!*ext) return result;
 
     if (extIs(ext, ".step", ".stp")) {
-        STEPControl_Reader reader;
-        if (reader.ReadFile(path) != IFSelect_RetDone) return result;
-        reader.TransferRoots();
-        result = reader.OneShape();
+        if (outColors) {
+            Handle(TDocStd_Document) doc = new TDocStd_Document("MDTV-XCAF");
+            STEPCAFControl_Reader reader;
+            reader.SetColorMode(true);
+            if (!reader.Perform(path, doc)) return result;
+            result = reader.ChangeReader().OneShape();
+            Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+            TDF_LabelSequence freeShapes;
+            st->GetFreeShapes(freeShapes);
+            if (freeShapes.Length() > 0) {
+                if (outXcafLabel) *outXcafLabel = freeShapes.Value(1);
+                if (outXcafDoc) *outXcafDoc = doc;
+                extractColorsFromDoc(freeShapes.Value(1), st->GetShape(freeShapes.Value(1)), *outColors);
+            }
+        } else {
+            STEPControl_Reader reader;
+            if (reader.ReadFile(path) != IFSelect_RetDone) return result;
+            reader.TransferRoots();
+            result = reader.OneShape();
+        }
     } else if (extIs(ext, ".iges", ".igs")) {
-        IGESControl_Reader reader;
-        if (reader.ReadFile(path) != IFSelect_RetDone) return result;
-        reader.TransferRoots();
-        result = reader.OneShape();
+        if (outColors) {
+            Handle(TDocStd_Document) doc = new TDocStd_Document("MDTV-XCAF");
+            IGESCAFControl_Reader reader;
+            reader.SetColorMode(true);
+            if (!reader.Perform(path, doc)) return result;
+            result = reader.OneShape();
+            Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+            TDF_LabelSequence freeShapes;
+            st->GetFreeShapes(freeShapes);
+            if (freeShapes.Length() > 0) {
+                if (outXcafLabel) *outXcafLabel = freeShapes.Value(1);
+                if (outXcafDoc) *outXcafDoc = doc;
+                extractColorsFromDoc(freeShapes.Value(1), st->GetShape(freeShapes.Value(1)), *outColors);
+            }
+        } else {
+            IGESControl_Reader reader;
+            if (reader.ReadFile(path) != IFSelect_RetDone) return result;
+            reader.TransferRoots();
+            result = reader.OneShape();
+        }
     } else if (extIs(ext, ".brep")) {
         BRep_Builder builder;
         BRepTools::Read(result, path, builder);
@@ -397,21 +478,54 @@ TopoDS_Shape OcctViewer::importShape(const char* path) {
     return result;
 }
 
-bool OcctViewer::exportShape(const TopoDS_Shape& shape, const char* path) {
+bool OcctViewer::exportShape(const TopoDS_Shape& shape, const char* path,
+                              const std::vector<FaceColorInfo>* colors) {
     if (shape.IsNull()) return false;
     const char* ext = fileExt(path);
     if (!*ext) return false;
 
     if (extIs(ext, ".step", ".stp")) {
-        STEPControl_Writer writer;
-        if (!writer.Transfer(shape, STEPControl_AsIs)) return false;
-        return writer.Write(path) == IFSelect_RetDone;
+        if (colors && !colors->empty()) {
+            Handle(TDocStd_Document) doc = new TDocStd_Document("MDTV-XCAF");
+            Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+            TDF_Label shapeLabel = st->AddShape(shape);
+            Handle(XCAFDoc_ColorTool) ct = XCAFDoc_DocumentTool::ColorTool(doc->Main());
+            for (auto& fc : *colors) {
+                TDF_Label faceLabel = st->AddSubShape(shapeLabel, fc.face);
+                ct->SetColor(faceLabel,
+                    Quantity_Color(fc.r, fc.g, fc.b, Quantity_TOC_RGB),
+                    XCAFDoc_ColorSurf);
+            }
+            STEPCAFControl_Writer writer;
+            if (!writer.Transfer(doc, STEPControl_AsIs)) return false;
+            return writer.Write(path) == IFSelect_RetDone;
+        } else {
+            STEPControl_Writer writer;
+            if (!writer.Transfer(shape, STEPControl_AsIs)) return false;
+            return writer.Write(path) == IFSelect_RetDone;
+        }
     } else if (extIs(ext, ".iges", ".igs")) {
         IGESControl_Controller::Init();
-        IGESControl_Writer writer;
-        if (!writer.AddShape(shape)) return false;
-        writer.ComputeModel();
-        return writer.Write(path);
+        if (colors && !colors->empty()) {
+            Handle(TDocStd_Document) doc = new TDocStd_Document("MDTV-XCAF");
+            Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+            TDF_Label shapeLabel = st->AddShape(shape);
+            Handle(XCAFDoc_ColorTool) ct = XCAFDoc_DocumentTool::ColorTool(doc->Main());
+            for (auto& fc : *colors) {
+                TDF_Label faceLabel = st->AddSubShape(shapeLabel, fc.face);
+                ct->SetColor(faceLabel,
+                    Quantity_Color(fc.r, fc.g, fc.b, Quantity_TOC_RGB),
+                    XCAFDoc_ColorSurf);
+            }
+            IGESCAFControl_Writer writer;
+            if (!writer.Transfer(doc)) return false;
+            return writer.Write(path);
+        } else {
+            IGESControl_Writer writer;
+            if (!writer.AddShape(shape)) return false;
+            writer.ComputeModel();
+            return writer.Write(path);
+        }
     } else if (extIs(ext, ".brep")) {
         return BRepTools::Write(shape, path);
     } else if (extIs(ext, ".stl")) {

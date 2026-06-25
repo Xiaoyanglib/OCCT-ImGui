@@ -45,6 +45,14 @@
 #include <Graphic3d_ClipPlane.hxx>
 #include <Quantity_Color.hxx>
 #include <Prs3d_ShadingAspect.hxx>
+#include <XCAFPrs_AISObject.hxx>
+#include <TDocStd_Document.hxx>
+#include <TDF_Label.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <XCAFDoc_ShapeTool.hxx>
+#include <XCAFDoc_ColorTool.hxx>
+#include <XCAFDoc_VisMaterial.hxx>
+#include <XCAFDoc_VisMaterialTool.hxx>
 
 #include <algorithm>
 #include <cstdio>
@@ -54,7 +62,20 @@
 
 namespace OcctImGui {
 
-// FaceEntry::setColor removed — use Viewer::setFaceColor with AIS_ColoredShape
+// ─── XCAF face-color helper ─────────────────────────────────────────────────
+
+static void setXcafFaceColor(const Viewer::ShapeEntry& entry,
+                              const TopoDS_Face& face,
+                              float r, float g, float b) {
+    if (entry.xcafDoc.IsNull()) return;
+    Handle(XCAFDoc_ShapeTool) st =
+        XCAFDoc_DocumentTool::ShapeTool(entry.xcafDoc->Main());
+    Handle(XCAFDoc_ColorTool) ct =
+        XCAFDoc_DocumentTool::ColorTool(entry.xcafDoc->Main());
+    TDF_Label fl = st->AddSubShape(entry.xcafShapeLabel, face);
+    ct->SetColor(fl,
+        Quantity_Color(r, g, b, Quantity_TOC_RGB), XCAFDoc_ColorSurf);
+}
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -75,9 +96,13 @@ int Viewer::addShape(const TopoDS_Shape& shape, float r, float g, float b,
     nextId_++;
 
     if (viewer()) {
-        Handle(AIS_Shape) ais = makeColoredShape(shape, r, g, b, tx, ty, tz);
+        Handle(TDocStd_Document) doc;
+        TDF_Label shapeLabel;
+        Handle(AIS_Shape) ais = makeColoredShape(shape, r, g, b, tx, ty, tz, &doc, &shapeLabel);
         viewer()->displayShape(ais);
         auto& entry = shapes_.emplace_back(ais, displayName, true, r, g, b, tx, ty, tz);
+        entry.xcafDoc = doc;
+        entry.xcafShapeLabel = shapeLabel;
         extractFaces(entry, shape, r, g, b, tx, ty, tz);
         return (int)shapes_.size() - 1;
     } else {
@@ -95,8 +120,7 @@ void Viewer::setFaceColor(int shapeIdx, int faceId, float r, float g, float b) {
     for (auto& f : entry.faces) {
         if (f.id == faceId) {
             f.color[0]=r; f.color[1]=g; f.color[2]=b; f.useCustomColor=true;
-            auto cs = Handle(AIS_ColoredShape)::DownCast(entry.aisShape);
-            if (!cs.IsNull()) cs->SetCustomColor(f.topoFace, Quantity_Color(r,g,b,Quantity_TOC_RGB));
+            setXcafFaceColor(entry, f.topoFace, r, g, b);
             return;
         }
     }
@@ -110,14 +134,18 @@ void Viewer::importFile(const char* path) {
     std::string p(path);
     snprintf(statusMsg_, sizeof(statusMsg_), "Importing %s...", path);
     pendingActions_.push_back([this, p](OcctViewer* v) {
-        TopoDS_Shape shape = v->importShape(p.c_str());
+        std::vector<FaceColorInfo> faceColors;
+        TDF_Label xcafLabel;
+        Handle(TDocStd_Document) xcafDoc;
+        TopoDS_Shape shape = v->importShape(p.c_str(), &faceColors, &xcafLabel, &xcafDoc);
         if (shape.IsNull()) {
             snprintf(statusMsg_, sizeof(statusMsg_), "Import failed: %s", p.c_str());
             return;
         }
-        float r = 0.7f, g = 0.7f, b = 0.7f;
-        Handle(AIS_ColoredShape) ais = new AIS_ColoredShape(shape);
-        ais->SetColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
+        Handle(AIS_ColoredShape) ais = new XCAFPrs_AISObject(xcafLabel);
+        Handle(Prs3d_ShadingAspect) sa = new Prs3d_ShadingAspect();
+        sa->SetColor(Quantity_Color(0.7f, 0.7f, 0.7f, Quantity_TOC_RGB));
+        ais->Attributes()->SetShadingAspect(sa);
         ais->Attributes()->SetFaceBoundaryDraw(true);
     ais->Attributes()->SetFaceBoundaryAspect(
         new Prs3d_LineAspect(Quantity_NOC_BLACK, Aspect_TOL_SOLID, 1.0));
@@ -130,8 +158,17 @@ void Viewer::importFile(const char* path) {
         char buf[64];
         strncpy(buf, name, sizeof(buf) - 1);
         buf[sizeof(buf) - 1] = '\0';
-        auto& entry = shapes_.emplace_back(ais, buf, true, r, g, b);
-        extractFaces(entry, shape, r, g, b);
+        auto& entry = shapes_.emplace_back(ais, buf, true, 0.7f, 0.7f, 0.7f);
+        entry.xcafDoc = xcafDoc;
+        entry.xcafShapeLabel = xcafLabel;
+        extractFaces(entry, shape, 0.7f, 0.7f, 0.7f);
+        for (size_t i = 0; i < faceColors.size() && i < entry.faces.size(); i++) {
+            entry.faces[i].color[0] = faceColors[i].r;
+            entry.faces[i].color[1] = faceColors[i].g;
+            entry.faces[i].color[2] = faceColors[i].b;
+            if (faceColors[i].r != 0.7f || faceColors[i].g != 0.7f || faceColors[i].b != 0.7f)
+                entry.faces[i].useCustomColor = true;
+        }
         v->displayShape(ais);
         v->setSelectionMode(selectionMode_);
         snprintf(statusMsg_, sizeof(statusMsg_), "Imported %s (%d faces)", buf, (int)entry.faces.size());
@@ -147,16 +184,20 @@ void Viewer::init() {
     viewer()->setOrthographic(true);
 
     for (auto& ps : pendingShapes_) {
+        Handle(TDocStd_Document) doc;
+        TDF_Label shapeLabel;
         Handle(AIS_Shape) ais = makeColoredShape(ps.shape, ps.r, ps.g, ps.b,
-                                                 ps.tx, ps.ty, ps.tz);
+                                                 ps.tx, ps.ty, ps.tz, &doc, &shapeLabel);
         auto& entry = shapes_[ps.shapeIdx];
         entry.aisShape = ais;
+        entry.xcafDoc = doc;
+        entry.xcafShapeLabel = shapeLabel;
         // Apply saved custom face colors BEFORE display
         auto cs = Handle(AIS_ColoredShape)::DownCast(ais);
         if (!cs.IsNull()) {
             for (auto& f : entry.faces) {
                 if (f.useCustomColor)
-                    cs->SetCustomColor(f.topoFace, Quantity_Color(f.color[0], f.color[1], f.color[2], Quantity_TOC_RGB));
+                    setXcafFaceColor(entry, f.topoFace, f.color[0], f.color[1], f.color[2]);
             }
         }
         viewer()->displayShape(ais, false);
@@ -242,8 +283,24 @@ void Viewer::onExport() {
     if (!OcctViewer::saveFileDialog(path, sizeof(path)))
         return;
 
+    // Collect per-face custom colors from selected shapes
+    std::vector<FaceColorInfo> faceColors;
+    for (auto& entry : shapes_) {
+        if (entry.aisShape.IsNull()) continue;
+        bool inSelection = false;
+        for (auto& sel : selected) {
+            if (entry.aisShape->Shape().IsSame(sel)) { inSelection = true; break; }
+        }
+        if (!inSelection) continue;
+        for (auto& f : entry.faces) {
+            if (f.useCustomColor)
+                faceColors.push_back({f.topoFace, f.color[0], f.color[1], f.color[2]});
+        }
+    }
+
     if (selected.Size() == 1) {
-        viewer()->exportShape(selected.First(), path);
+        viewer()->exportShape(selected.First(), path,
+            faceColors.empty() ? nullptr : &faceColors);
     } else {
         TopoDS_Compound compound;
         BRep_Builder builder;
@@ -271,18 +328,19 @@ void Viewer::drawObjectPanel() {
     ImGui::TextUnformatted("Select");
     ImGui::SameLine(80);
     ImGui::PushItemWidth(-1);
-    const char* selModes[] = { "Shape", "Face", "Edge", "Vertex" };
+    const char* selModes[] = { "Shape", "Solid", "Face", "Edge", "Vertex" };
     int selVals[] = {
         AIS_Shape::SelectionMode(TopAbs_SHAPE),
+        AIS_Shape::SelectionMode(TopAbs_SOLID),
         AIS_Shape::SelectionMode(TopAbs_FACE),
         AIS_Shape::SelectionMode(TopAbs_EDGE),
         AIS_Shape::SelectionMode(TopAbs_VERTEX)
     };
     int selCur = 0;
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 5; ++i) {
         if (selectionMode_ == selVals[i]) { selCur = i; break; }
     }
-    if (ImGui::Combo("##selmode", &selCur, selModes, 4)) {
+    if (ImGui::Combo("##selmode", &selCur, selModes, 5)) {
         selectionMode_ = selVals[selCur];
         int mode = selectionMode_;
         pendingActions_.push_back([mode](OcctViewer* v) {
@@ -350,17 +408,22 @@ void Viewer::drawObjectPanel() {
                 f.color[0] = r; f.color[1] = g; f.color[2] = b;
                 f.useCustomColor = false;
             }
-            // faceShapes removed (AIS_ColoredShape renders faces)
-            // Re-apply uniform color to all faces
+            // Re-apply uniform color to all faces via XCAF document
             std::vector<TopoDS_Face> allFaces;
             for (auto& f : entry.faces) allFaces.push_back(f.topoFace);
-            pendingActions_.push_back([cs = Handle(AIS_ColoredShape)::DownCast(entry.aisShape),
-                                      allFaces, r, g, b](OcctViewer* v) {
-                if (!cs.IsNull()) {
-                    cs->SetColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
-                    for (auto& tf : allFaces)
-                        cs->SetCustomColor(tf, Quantity_Color(r, g, b, Quantity_TOC_RGB));
-                }
+            int si = i;
+            pendingActions_.push_back([this, si, allFaces, r, g, b](OcctViewer* v) {
+                auto& ent = shapes_[si];
+                if (ent.xcafDoc.IsNull()) return;
+                // Update base color on shape label
+                Handle(XCAFDoc_ColorTool) ct =
+                    XCAFDoc_DocumentTool::ColorTool(ent.xcafDoc->Main());
+                ct->SetColor(ent.xcafShapeLabel,
+                    Quantity_Color(r, g, b, Quantity_TOC_RGB), XCAFDoc_ColorSurf);
+                // Update per-face colors
+                for (auto& tf : allFaces)
+                    setXcafFaceColor(ent, tf, r, g, b);
+                v->context()->Redisplay(ent.aisShape, true);
             });
         }
         if (rainbow) {
@@ -432,10 +495,16 @@ void Viewer::drawObjectPanel() {
                     entry.color[1] = f.color[1];
                     entry.color[2] = f.color[2];
                     float fr = f.color[0], fg = f.color[1], fb = f.color[2];
-                    pendingActions_.push_back([cs = Handle(AIS_ColoredShape)::DownCast(entry.aisShape),
-                                              tf = f.topoFace, fr, fg, fb](OcctViewer* v) {
-                        if (!cs.IsNull())
-                            cs->SetCustomColor(tf, Quantity_Color(fr, fg, fb, Quantity_TOC_RGB));
+                    int si2 = i, fi = f.id;
+                    pendingActions_.push_back([this, si2, fi, fr, fg, fb](OcctViewer* v) {
+                        auto& ent = shapes_[si2];
+                        for (auto& ff : ent.faces) {
+                            if (ff.id == fi) {
+                                setXcafFaceColor(ent, ff.topoFace, fr, fg, fb);
+                                v->context()->Redisplay(ent.aisShape, true);
+                                return;
+                            }
+                        }
                     });
                 }
                 ImGui::Unindent(16.0f);
@@ -728,9 +797,25 @@ void Viewer::extractFaces(ShapeEntry& entry, const TopoDS_Shape& shape,
 
 Handle(AIS_ColoredShape) Viewer::makeColoredShape(const TopoDS_Shape& shape,
                                                   float r, float g, float b,
-                                                  double tx, double ty, double tz) {
-    Handle(AIS_ColoredShape) ais = new AIS_ColoredShape(shape);
-    ais->SetColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
+                                                  double tx, double ty, double tz,
+                                                  Handle(TDocStd_Document)* outDoc,
+                                                  TDF_Label* outShapeLabel) {
+    Handle(TDocStd_Document) doc = new TDocStd_Document("MDTV-XCAF");
+    Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+    TDF_Label shapeLabel = st->AddShape(shape);
+    XCAFDoc_VisMaterialCommon cm;
+    cm.DiffuseColor  = Quantity_Color(r, g, b, Quantity_TOC_RGB);
+    cm.AmbientColor  = Quantity_Color(r*0.3f, g*0.3f, b*0.3f, Quantity_TOC_RGB);
+    cm.SpecularColor = Quantity_Color(0.0, 0.0, 0.0, Quantity_TOC_RGB);
+    cm.Shininess     = 0.0f;
+    Handle(XCAFDoc_VisMaterial) mat = new XCAFDoc_VisMaterial();
+    mat->SetCommonMaterial(cm);
+    Handle(XCAFDoc_VisMaterialTool) mt =
+        XCAFDoc_DocumentTool::VisMaterialTool(doc->Main());
+    TDF_Label matLabel = mt->AddMaterial(mat, "Default");
+    mt->SetShapeMaterial(shapeLabel, matLabel);
+
+    Handle(AIS_ColoredShape) ais = new XCAFPrs_AISObject(shapeLabel);
     ais->Attributes()->SetFaceBoundaryDraw(true);
     ais->Attributes()->SetFaceBoundaryAspect(
         new Prs3d_LineAspect(Quantity_NOC_BLACK, Aspect_TOL_SOLID, 1.0));
@@ -739,6 +824,8 @@ Handle(AIS_ColoredShape) Viewer::makeColoredShape(const TopoDS_Shape& shape,
         trsf.SetTranslation(gp_Vec(tx, ty, tz));
         ais->SetLocalTransformation(trsf);
     }
+    if (outDoc) *outDoc = doc;
+    if (outShapeLabel) *outShapeLabel = shapeLabel;
     return ais;
 }
 
