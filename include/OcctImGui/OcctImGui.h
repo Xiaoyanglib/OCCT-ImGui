@@ -24,6 +24,8 @@
 
 #include "../../src/Application.h"
 #include <AIS_ColoredShape.hxx>
+#include <TDocStd_Document.hxx>
+#include <TDF_Label.hxx>
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopExp_Explorer.hxx>
@@ -50,6 +52,8 @@ public:
     /// Per-shape data, accessible for direct manipulation.
     struct ShapeEntry {
         Handle(AIS_Shape) aisShape;
+        Handle(TDocStd_Document) xcafDoc;       // keep XCAF doc alive
+        TDF_Label                xcafShapeLabel; // shape label within the doc
         std::string name;
         bool visible = true;
         bool facesExpanded = false;
@@ -114,7 +118,9 @@ private:
     void updateClipPlane();
     Handle(AIS_ColoredShape) makeColoredShape(const TopoDS_Shape& shape,
                                               float r, float g, float b,
-                                              double tx = 0, double ty = 0, double tz = 0);
+                                              double tx = 0, double ty = 0, double tz = 0,
+                                              Handle(TDocStd_Document)* outDoc = nullptr,
+                                              TDF_Label* outShapeLabel = nullptr);
 
     std::vector<ShapeEntry> shapes_;
     std::vector<PendingShape> pendingShapes_;
