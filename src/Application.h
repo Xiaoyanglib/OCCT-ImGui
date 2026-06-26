@@ -105,6 +105,8 @@ protected:
     bool pendingRectSelect_ = false;
     bool pendingRectShift_  = false;
     bool pendingRectCtrl_   = false;
+    bool contextMenuRequested_ = false;
+    int  rightClickStartX_ = 0, rightClickStartY_ = 0;
     int  rectX1_ = 0, rectY1_ = 0, rectX2_ = 0, rectY2_ = 0;
 
 private:

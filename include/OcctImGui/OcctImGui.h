@@ -115,6 +115,9 @@ private:
 
     void drawObjectPanel();
     void drawOverlay() override;
+    void drawContextMenu();
+    void hideSelectedFaces();
+    void deleteSelectedFaces();
     void updateClipPlane();
     Handle(AIS_ColoredShape) makeColoredShape(const TopoDS_Shape& shape,
                                               float r, float g, float b,

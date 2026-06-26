@@ -119,8 +119,16 @@ void Application::glfwMouseButtonCallback(GLFWwindow* window, int button, int ac
             g_app->panning_ = false;
         }
     } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-        if (action == GLFW_PRESS)
+        if (action == GLFW_PRESS) {
             v->startRotation(ixFb, iyFb);
+            g_app->rightClickStartX_ = ix;
+            g_app->rightClickStartY_ = iy;
+        } else if (action == GLFW_RELEASE) {
+            int dx = ix - g_app->rightClickStartX_;
+            int dy = iy - g_app->rightClickStartY_;
+            if (abs(dx) < 4 && abs(dy) < 4)
+                g_app->contextMenuRequested_ = true;
+        }
     } else if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
         g_app->lastMouseY_ = iy;
     }
@@ -630,6 +638,13 @@ void Application::drawViewerPanel() {
     ImGui::BulletText("F:     Fit All");
     ImGui::BulletText("F7:    Toggle Controls");
     ImGui::BulletText("F8:    Toggle Objects");
+
+    ImGui::Spacing();
+    ImGui::Text("Selection");
+    ImGui::Separator();
+    ImGui::BulletText("Drag:      Replace select");
+    ImGui::BulletText("Shift+drag: Add select");
+    ImGui::BulletText("Ctrl+drag:  Remove select");
 
     ImGui::End();
 }
