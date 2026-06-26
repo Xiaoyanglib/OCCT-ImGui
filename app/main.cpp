@@ -22,7 +22,7 @@
 
 /// Demo application: creates a viewer with three sample shapes and starts the event loop.
 
-#include "../include/OcctImGui/OcctImGui.h"
+#include "OcctImGui/OcctImGui.h"
 
 // OCCT primitive shape builders for the demo scene
 #include <BRepPrimAPI_MakeBox.hxx>       // Box shape
