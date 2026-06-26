@@ -238,6 +238,19 @@ bool OcctViewer::shiftSelect(int, int) {
     return context_->MoreSelected();
 }
 
+bool OcctViewer::ctrlSelect(int, int) {
+    if (context_.IsNull() || view_.IsNull()) return false;
+    // Remove-only: deselect if currently selected
+    context_->InitDetected();
+    if (context_->MoreDetected()) {
+        auto owner = context_->DetectedCurrentOwner();
+        if (!owner.IsNull() && context_->IsSelected(owner))
+            context_->AddOrRemoveSelected(owner, false);
+    }
+    context_->InitSelected();
+    return context_->MoreSelected();
+}
+
 void OcctViewer::selectRectangle(int x1, int y1, int x2, int y2) {
     if (context_.IsNull() || view_.IsNull()) return;
     context_->SelectRectangle(NCollection_Vec2<int>(std::min(x1, x2), std::min(y1, y2)),
@@ -252,7 +265,7 @@ void OcctViewer::shiftSelectRectangle(int x1, int y1, int x2, int y2) {
                               view_, AIS_SelectionScheme_XOR);
 }
 
-void OcctViewer::selectRectangleOcclusionAware(int x1, int y1, int x2, int y2, bool isShift) {
+void OcctViewer::selectRectangleOcclusionAware(int x1, int y1, int x2, int y2, bool isShift, bool isCtrl) {
     if (context_.IsNull() || view_.IsNull()) return;
 
     int xMin = std::min(x1, x2);
@@ -274,16 +287,23 @@ void OcctViewer::selectRectangleOcclusionAware(int x1, int y1, int x2, int y2, b
         }
     }
 
-    if (!isShift) {
-        context_->ClearSelected(false);
+    if (isCtrl) {
+        // Ctrl: only remove currently selected entities
         for (auto& owner : owners) {
-            context_->AddOrRemoveSelected(owner, false);
+            if (context_->IsSelected(owner))
+                context_->AddOrRemoveSelected(owner, false);
         }
-    } else {
+    } else if (isShift) {
         // Shift: only add, never remove
         for (auto& owner : owners) {
             if (!context_->IsSelected(owner))
                 context_->AddOrRemoveSelected(owner, false);
+        }
+    } else {
+        // Replace: clear and add all detected
+        context_->ClearSelected(false);
+        for (auto& owner : owners) {
+            context_->AddOrRemoveSelected(owner, false);
         }
     }
 }

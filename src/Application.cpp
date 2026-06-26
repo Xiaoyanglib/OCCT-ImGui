@@ -63,20 +63,34 @@ void Application::glfwMouseButtonCallback(GLFWwindow* window, int button, int ac
     float pr = g_app->pixelRatio_;
     int ixFb = static_cast<int>(x * pr), iyFb = static_cast<int>(y * pr);
     bool shift = (mods & GLFW_MOD_SHIFT) != 0;
+    bool ctrl  = (mods & GLFW_MOD_CONTROL) != 0;
 
     if (button == GLFW_MOUSE_BUTTON_LEFT) {
         if (action == GLFW_PRESS) {
             if (shift) {
-                // Shift+left: toggle-pick on press, then always allow rect-select drag.
+                // Shift+left: add to selection on press, then allow rect-select drag.
                 v->shiftSelect(ixFb, iyFb);
                 g_app->selecting_   = true;
                 g_app->selectShift_ = true;
+                g_app->selectCtrl_  = false;
+                g_app->selStartX_   = ix;
+                g_app->selStartY_   = iy;
+                g_app->selEndX_     = ix;
+                g_app->selEndY_     = iy;
+            } else if (ctrl) {
+                // Ctrl+left: remove from selection on press, then allow rect-select drag.
+                v->ctrlSelect(ixFb, iyFb);
+                g_app->selecting_   = true;
+                g_app->selectCtrl_  = true;
+                g_app->selectShift_ = false;
                 g_app->selStartX_   = ix;
                 g_app->selStartY_   = iy;
                 g_app->selEndX_     = ix;
                 g_app->selEndY_     = iy;
             } else {
                 // Plain left → record for click-vs-drag detection.
+                g_app->selectShift_ = false;
+                g_app->selectCtrl_  = false;
                 g_app->selecting_   = false;
                 g_app->panning_     = true;
                 g_app->clickStartX_ = ix;
@@ -89,6 +103,7 @@ void Application::glfwMouseButtonCallback(GLFWwindow* window, int button, int ac
                 // Defer selection to postFrame — avoids blocking the render thread.
                 g_app->pendingRectSelect_ = true;
                 g_app->pendingRectShift_  = g_app->selectShift_;
+                g_app->pendingRectCtrl_   = g_app->selectCtrl_;
                 g_app->rectX1_ = g_app->selStartX_;
                 g_app->rectY1_ = g_app->selStartY_;
                 g_app->rectX2_ = g_app->selEndX_;
@@ -630,7 +645,8 @@ void Application::postFrame() {
         if (dx > 3 || dy > 3) {
             float pr = pixelRatio_;
             viewer_->selectRectangleOcclusionAware(selStartX_ * pr, selStartY_ * pr,
-                                                   selEndX_ * pr, selEndY_ * pr, selectShift_);
+                                                   selEndX_ * pr, selEndY_ * pr,
+                                                   selectShift_, selectCtrl_);
         }
     }
 
@@ -639,8 +655,11 @@ void Application::postFrame() {
         int dx = std::abs(rectX1_ - rectX2_);
         int dy = std::abs(rectY1_ - rectY2_);
         if (dx <= 3 && dy <= 3) {
-            // Click (no drag) → toggle selection under cursor
-            viewer_->shiftSelect(rectX1_ * pr, rectY1_ * pr);
+            // Click (no drag) → add or remove under cursor
+            if (pendingRectCtrl_)
+                viewer_->ctrlSelect(rectX1_ * pr, rectY1_ * pr);
+            else if (pendingRectShift_)
+                viewer_->shiftSelect(rectX1_ * pr, rectY1_ * pr);
         }
         // Drags were already handled by real-time selection above.
         pendingRectSelect_ = false;

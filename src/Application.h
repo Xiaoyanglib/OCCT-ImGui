@@ -95,6 +95,7 @@ protected:
     bool panning_         = false;
     bool selecting_       = false;
     bool selectShift_     = false;
+    bool selectCtrl_      = false;
     int  selStartX_ = 0, selStartY_ = 0;
     int  selEndX_   = 0, selEndY_   = 0;
     int  clickStartX_ = 0, clickStartY_ = 0;
@@ -103,6 +104,7 @@ protected:
 
     bool pendingRectSelect_ = false;
     bool pendingRectShift_  = false;
+    bool pendingRectCtrl_   = false;
     int  rectX1_ = 0, rectY1_ = 0, rectX2_ = 0, rectY2_ = 0;
 
 private:
