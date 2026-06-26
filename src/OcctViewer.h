@@ -132,6 +132,9 @@ public:
     void shiftSelectRectangle(int x1, int y1, int x2, int y2);
     void clearSelection();
 
+    /// Occlusion-aware rectangle selection using point-sampling ray-casts.
+    void selectRectangleOcclusionAware(int x1, int y1, int x2, int y2, bool isShift);
+
     /// Set global selection mode (Shape/Face/Edge/Vertex).
     void setSelectionMode(int mode);
 

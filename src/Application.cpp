@@ -629,8 +629,8 @@ void Application::postFrame() {
         int dy = std::abs(selEndY_ - selStartY_);
         if (dx > 3 || dy > 3) {
             float pr = pixelRatio_;
-            viewer_->selectRectangle(selStartX_ * pr, selStartY_ * pr,
-                                     selEndX_ * pr, selEndY_ * pr);
+            viewer_->selectRectangleOcclusionAware(selStartX_ * pr, selStartY_ * pr,
+                                                   selEndX_ * pr, selEndY_ * pr, selectShift_);
         }
     }
 
