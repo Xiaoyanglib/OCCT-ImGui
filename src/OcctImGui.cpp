@@ -490,8 +490,25 @@ void Viewer::drawObjectPanel() {
                 snprintf(faceLabel, sizeof(faceLabel), "Face %d", f.id);
                 ImGui::TextUnformatted(faceLabel);
                 ImGui::SameLine();
-                ImGui::Checkbox("##fvis", &f.visible);
-                // Face visibility via AIS_ColoredShape::SetCustomColor (TODO)
+                if (ImGui::Checkbox("##fvis", &f.visible)) {
+                    bool vis = f.visible;
+                    int si2 = i, fi2 = f.id;
+                    pendingActions_.push_back([this, si2, fi2, vis](OcctViewer* v) {
+                        auto& ent = shapes_[si2];
+                        if (ent.aisShape.IsNull() || ent.xcafDoc.IsNull()) return;
+                        Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(ent.xcafDoc->Main());
+                        Handle(XCAFDoc_ColorTool) ct = XCAFDoc_DocumentTool::ColorTool(ent.xcafDoc->Main());
+                        for (auto& ff : ent.faces) {
+                            if (ff.id == fi2) {
+                                TDF_Label faceLabel = st->AddSubShape(ent.xcafShapeLabel, ff.topoFace);
+                                ct->SetVisibility(faceLabel, vis ? Standard_True : Standard_False);
+                                break;
+                            }
+                        }
+                        Handle(XCAFPrs_AISObject)::DownCast(ent.aisShape)->DispatchStyles(Standard_True);
+                        v->context()->Redisplay(ent.aisShape, true);
+                    });
+                }
                 ImGui::SameLine();
                 if (ImGui::ColorEdit3("##fcolor", f.color,
                     ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel)) {
