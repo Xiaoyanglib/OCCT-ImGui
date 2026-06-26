@@ -466,25 +466,16 @@ void Viewer::drawObjectPanel() {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         bool del = ImGui::Button("X", ImVec2(btnSize, btnSize));
         ImGui::PopStyleColor(4);
-        if (del)
-            ImGui::OpenPopup("Delete Shape?");
-        if (ImGui::BeginPopupModal("Delete Shape?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Remove '%s'?", entry.name.c_str());
-            if (ImGui::Button("Yes", ImVec2(80, 0))) {
-                auto shape = entry.aisShape;
-                pendingActions_.push_back([shape](OcctViewer* v) {
-                    v->removeShape(shape, true);
-                });
-                // face removal handled by parent AIS_ColoredShape
-                snprintf(statusMsg_, sizeof(statusMsg_), "Deleted '%s'", entry.name.c_str());
-                entry.aisShape.Nullify();
-                entry.faces.clear();
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("No", ImVec2(80, 0)))
-                ImGui::CloseCurrentPopup();
-            ImGui::EndPopup();
+        if (del) {
+            auto shape = entry.aisShape;
+            pendingActions_.push_back([shape](OcctViewer* v) {
+                v->removeShape(shape, true);
+            });
+            snprintf(statusMsg_, sizeof(statusMsg_), "Deleted '%s'", entry.name.c_str());
+            entry.aisShape.Nullify();
+            entry.faces.clear();
+            ImGui::PopID();
+            continue;
         }
 
         // ── Expand: face sub-objects ──
