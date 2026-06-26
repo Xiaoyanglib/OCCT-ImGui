@@ -394,22 +394,29 @@ static void extractColorsFromDoc(const TDF_Label& shapeLabel,
     NCollection_IndexedDataMap<TopoDS_Shape, XCAFPrs_Style, TopTools_ShapeMapHasher> settings;
     TopLoc_Location loc;
     XCAFPrs::CollectStyleSettings(shapeLabel, loc, settings);
+    // Collect solid-level fallback colors
+    struct SolidColor { bool has; float r,g,b; };
+    SolidColor solidFallback = {false, 0.7f, 0.7f, 0.7f};
+    for (int si = 1; si <= settings.Extent(); si++) {
+        const XCAFPrs_Style& stl = settings.FindFromIndex(si);
+        if (stl.IsSetColorSurf() && settings.FindKey(si).ShapeType() != TopAbs_FACE) {
+            Quantity_ColorRGBA c = stl.GetColorSurfRGBA();
+            solidFallback = {true, (float)c.GetRGB().Red(), (float)c.GetRGB().Green(), (float)c.GetRGB().Blue()};
+        }
+    }
+
     for (TopExp_Explorer exp(xcafShape, TopAbs_FACE); exp.More(); exp.Next()) {
         TopoDS_Face face = TopoDS::Face(exp.Current());
-        float fr = 0.7f, fg = 0.7f, fb = 0.7f;
+        float fr = solidFallback.r, fg = solidFallback.g, fb = solidFallback.b;
         int idx = settings.FindIndex(face);
         if (idx > 0) {
             const XCAFPrs_Style& stl = settings.FindFromIndex(idx);
             if (stl.IsSetColorSurf()) {
                 Quantity_ColorRGBA c = stl.GetColorSurfRGBA();
-                fr = (float)c.GetRGB().Red();
-                fg = (float)c.GetRGB().Green();
-                fb = (float)c.GetRGB().Blue();
+                fr = (float)c.GetRGB().Red(); fg = (float)c.GetRGB().Green(); fb = (float)c.GetRGB().Blue();
             } else if (!stl.Material().IsNull() && stl.Material()->HasPbrMaterial()) {
                 Quantity_ColorRGBA c = stl.Material()->PbrMaterial().BaseColor;
-                fr = (float)c.GetRGB().Red();
-                fg = (float)c.GetRGB().Green();
-                fb = (float)c.GetRGB().Blue();
+                fr = (float)c.GetRGB().Red(); fg = (float)c.GetRGB().Green(); fb = (float)c.GetRGB().Blue();
             }
         }
         outColors.push_back({face, fr, fg, fb});
@@ -449,11 +456,14 @@ TopoDS_Shape OcctViewer::importShape(const char* path,
                 if (outSolidColors) outSolidColors->push_back(sc);
             }
             if (freeShapes.Length() == 0) {
-                extractColorsFromDoc(doc->Main(), result, *outColors);
+                TDF_Label lbl = st->AddShape(result);
+                extractColorsFromDoc(lbl, result, *outColors);
                 if (outSolidFaceCounts) outSolidFaceCounts->push_back((int)outColors->size());
                 if (outSolidColors) outSolidColors->push_back(*outColors);
+                if (outSolidLabels) outSolidLabels->push_back(lbl);
+                if (outXcafLabel) *outXcafLabel = lbl;
             }
-            if (outXcafLabel)
+            if (outXcafLabel && outXcafLabel->IsNull())
                 *outXcafLabel = freeShapes.Length() > 0 ? freeShapes.Value(1) : TDF_Label();
             if (outXcafDoc) *outXcafDoc = doc;
             for (auto& fc : *outColors) fc.face.Nullify();
@@ -483,11 +493,14 @@ TopoDS_Shape OcctViewer::importShape(const char* path,
                 if (outSolidColors) outSolidColors->push_back(sc);
             }
             if (freeShapes.Length() == 0) {
-                extractColorsFromDoc(doc->Main(), result, *outColors);
+                TDF_Label lbl = st->AddShape(result);
+                extractColorsFromDoc(lbl, result, *outColors);
                 if (outSolidFaceCounts) outSolidFaceCounts->push_back((int)outColors->size());
                 if (outSolidColors) outSolidColors->push_back(*outColors);
+                if (outSolidLabels) outSolidLabels->push_back(lbl);
+                if (outXcafLabel) *outXcafLabel = lbl;
             }
-            if (outXcafLabel)
+            if (outXcafLabel && outXcafLabel->IsNull())
                 *outXcafLabel = freeShapes.Length() > 0 ? freeShapes.Value(1) : TDF_Label();
             if (outXcafDoc) *outXcafDoc = doc;
             for (auto& fc : *outColors) fc.face.Nullify();
