@@ -113,6 +113,7 @@ OcctViewer::OcctViewer(GLFWwindow* glfwWindow)
 
     context_->HighlightStyle()->SetColor(Quantity_NOC_CYAN1);
     context_->SelectionStyle()->SetColor(Quantity_NOC_CYAN1);
+    context_->MainSelector()->AllowOverlapDetection(true);
 
     view_ = viewer_->CreateView();
     view_->SetWindow(win, win->NativeGlContext());

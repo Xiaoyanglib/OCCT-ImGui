@@ -623,14 +623,26 @@ void Application::onImport() {}
 void Application::onExport() {}
 void Application::onImportFile(const char*) {}
 void Application::postFrame() {
+    // Real-time selection during drag (before release fires)
+    if (selecting_) {
+        int dx = std::abs(selEndX_ - selStartX_);
+        int dy = std::abs(selEndY_ - selStartY_);
+        if (dx > 3 || dy > 3) {
+            float pr = pixelRatio_;
+            viewer_->selectRectangle(selStartX_ * pr, selStartY_ * pr,
+                                     selEndX_ * pr, selEndY_ * pr);
+        }
+    }
+
     if (pendingRectSelect_) {
         float pr = pixelRatio_;
-        if (pendingRectShift_)
-            viewer_->shiftSelectRectangle(rectX1_ * pr, rectY1_ * pr,
-                                          rectX2_ * pr, rectY2_ * pr);
-        else
-            viewer_->selectRectangle(rectX1_ * pr, rectY1_ * pr,
-                                     rectX2_ * pr, rectY2_ * pr);
+        int dx = std::abs(rectX1_ - rectX2_);
+        int dy = std::abs(rectY1_ - rectY2_);
+        if (dx <= 3 && dy <= 3) {
+            // Click (no drag) → toggle selection under cursor
+            viewer_->shiftSelect(rectX1_ * pr, rectY1_ * pr);
+        }
+        // Drags were already handled by real-time selection above.
         pendingRectSelect_ = false;
     }
 }
