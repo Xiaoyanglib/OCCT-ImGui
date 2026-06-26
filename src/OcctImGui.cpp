@@ -194,7 +194,6 @@ void Viewer::importFile(const char* path) {
 
 void Viewer::init() {
     viewer()->setShadedWithEdges();
-    viewer()->setSelectionMode(selectionMode_);
     viewer()->setOrthographic(true);
 
     for (auto& ps : pendingShapes_) {
@@ -220,6 +219,10 @@ void Viewer::init() {
 
     if (!shapes_.empty())
         viewer()->fitAll();
+
+    // Activate selection mode after all shapes are displayed,
+    // so context_->Activate() applies to existing objects.
+    viewer()->setSelectionMode(selectionMode_);
 }
 
 void Viewer::drawGui() {
@@ -556,6 +559,10 @@ void Viewer::drawObjectPanel() {
                 v->displayShape(shape, false);
             });
         }
+        int mode = selectionMode_;
+        pendingActions_.push_back([mode](OcctViewer* v) {
+            v->setSelectionMode(mode);
+        });
         snprintf(statusMsg_, sizeof(statusMsg_), "Show All");
     }
 
