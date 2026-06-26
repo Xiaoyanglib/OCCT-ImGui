@@ -440,14 +440,10 @@ void Application::setupDockLayout(ImGuiID dockspaceId) {
     ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
     ImGui::DockBuilderSetNodeSize(dockspaceId, ImGui::GetMainViewport()->Size);
 
-    ImGuiID dockBottom, dockCenter;
-    ImGui::DockBuilderSplitNode(dockspaceId, ImGuiDir_Down, 0.25f, &dockBottom, &dockCenter);
-
     ImGuiID dockObjects, dock3D;
-    ImGui::DockBuilderSplitNode(dockCenter, ImGuiDir_Left, 0.18f, &dockObjects, &dock3D);
+    ImGui::DockBuilderSplitNode(dockspaceId, ImGuiDir_Left, 0.18f, &dockObjects, &dock3D);
 
-    ImGui::DockBuilderDockWindow("Objects",         dockObjects);
-    ImGui::DockBuilderDockWindow("Viewer",          dockBottom);
+    ImGui::DockBuilderDockWindow("Objects", dockObjects);
 
     ImGui::DockBuilderFinish(dockspaceId);
 }
@@ -551,7 +547,7 @@ void Application::drawDockSpace() {
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("View")) {
-            ImGui::MenuItem("Viewer",    "F7", &showViewerPanel_);
+            ImGui::MenuItem("Controls",  "F7", &showViewerPanel_);
             ImGui::MenuItem("Objects",   "F8", &showObjectPanel_);
             ImGui::Separator();
             ImGui::EndMenu();
@@ -600,9 +596,13 @@ void Application::init() {}
 void Application::drawGui() {}
 
 void Application::drawViewerPanel() {
-    ImGui::Begin("Viewer", &showViewerPanel_);
+    ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(vp->Pos.x + vp->Size.x - 10.0f, vp->Pos.y + vp->Size.y - (22.0f * fontScale_ + 6.0f)),
+                            ImGuiCond_Always, ImVec2(1.0f, 1.0f));
 
-    ImGui::Text("Mouse Controls");
+    ImGui::Begin("Controls", &showViewerPanel_, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
+
+    ImGui::Text("Mouse");
     ImGui::Separator();
     ImGui::BulletText("Left drag:   Pan");
     ImGui::BulletText("Right drag:  Rotate");
@@ -613,7 +613,7 @@ void Application::drawViewerPanel() {
     ImGui::Text("Keyboard");
     ImGui::Separator();
     ImGui::BulletText("F:     Fit All");
-    ImGui::BulletText("F7:    Toggle Viewer");
+    ImGui::BulletText("F7:    Toggle Controls");
     ImGui::BulletText("F8:    Toggle Objects");
 
     ImGui::End();
