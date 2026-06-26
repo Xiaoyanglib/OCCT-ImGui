@@ -43,6 +43,7 @@
 #include <gp_Vec.hxx>
 #include <gp_Pln.hxx>
 #include <Graphic3d_ClipPlane.hxx>
+#include <StdSelect_BRepOwner.hxx>
 #include <Quantity_Color.hxx>
 #include <Prs3d_ShadingAspect.hxx>
 #include <XCAFPrs_AISObject.hxx>
@@ -183,6 +184,7 @@ void Viewer::importFile(const char* path) {
         }
         v->displayShape(ais);
         v->setSelectionMode(selectionMode_);
+        v->fitAll();
         snprintf(statusMsg_, sizeof(statusMsg_), "Imported %s (%d faces)", buf, (int)entry.faces.size());
         nextId_++;
     });
@@ -192,7 +194,6 @@ void Viewer::importFile(const char* path) {
 
 void Viewer::init() {
     viewer()->setShadedWithEdges();
-    viewer()->setSelectionMode(selectionMode_);
     viewer()->setOrthographic(true);
 
     for (auto& ps : pendingShapes_) {
@@ -218,6 +219,10 @@ void Viewer::init() {
 
     if (!shapes_.empty())
         viewer()->fitAll();
+
+    // Activate selection mode after all shapes are displayed,
+    // so context_->Activate() applies to existing objects.
+    viewer()->setSelectionMode(selectionMode_);
 }
 
 void Viewer::drawGui() {
@@ -466,25 +471,16 @@ void Viewer::drawObjectPanel() {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         bool del = ImGui::Button("X", ImVec2(btnSize, btnSize));
         ImGui::PopStyleColor(4);
-        if (del)
-            ImGui::OpenPopup("Delete Shape?");
-        if (ImGui::BeginPopupModal("Delete Shape?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Remove '%s'?", entry.name.c_str());
-            if (ImGui::Button("Yes", ImVec2(80, 0))) {
-                auto shape = entry.aisShape;
-                pendingActions_.push_back([shape](OcctViewer* v) {
-                    v->removeShape(shape, true);
-                });
-                // face removal handled by parent AIS_ColoredShape
-                snprintf(statusMsg_, sizeof(statusMsg_), "Deleted '%s'", entry.name.c_str());
-                entry.aisShape.Nullify();
-                entry.faces.clear();
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("No", ImVec2(80, 0)))
-                ImGui::CloseCurrentPopup();
-            ImGui::EndPopup();
+        if (del) {
+            auto shape = entry.aisShape;
+            pendingActions_.push_back([shape](OcctViewer* v) {
+                v->removeShape(shape, true);
+            });
+            snprintf(statusMsg_, sizeof(statusMsg_), "Deleted '%s'", entry.name.c_str());
+            entry.aisShape.Nullify();
+            entry.faces.clear();
+            ImGui::PopID();
+            continue;
         }
 
         // ── Expand: face sub-objects ──
@@ -497,8 +493,25 @@ void Viewer::drawObjectPanel() {
                 snprintf(faceLabel, sizeof(faceLabel), "Face %d", f.id);
                 ImGui::TextUnformatted(faceLabel);
                 ImGui::SameLine();
-                ImGui::Checkbox("##fvis", &f.visible);
-                // Face visibility via AIS_ColoredShape::SetCustomColor (TODO)
+                if (ImGui::Checkbox("##fvis", &f.visible)) {
+                    bool vis = f.visible;
+                    int si2 = i, fi2 = f.id;
+                    pendingActions_.push_back([this, si2, fi2, vis](OcctViewer* v) {
+                        auto& ent = shapes_[si2];
+                        if (ent.aisShape.IsNull() || ent.xcafDoc.IsNull()) return;
+                        Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(ent.xcafDoc->Main());
+                        Handle(XCAFDoc_ColorTool) ct = XCAFDoc_DocumentTool::ColorTool(ent.xcafDoc->Main());
+                        for (auto& ff : ent.faces) {
+                            if (ff.id == fi2) {
+                                TDF_Label faceLabel = st->AddSubShape(ent.xcafShapeLabel, ff.topoFace);
+                                ct->SetVisibility(faceLabel, vis ? Standard_True : Standard_False);
+                                break;
+                            }
+                        }
+                        Handle(XCAFPrs_AISObject)::DownCast(ent.aisShape)->DispatchStyles(Standard_True);
+                        v->context()->Redisplay(ent.aisShape, true);
+                    });
+                }
                 ImGui::SameLine();
                 if (ImGui::ColorEdit3("##fcolor", f.color,
                     ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel)) {
@@ -546,6 +559,10 @@ void Viewer::drawObjectPanel() {
                 v->displayShape(shape, false);
             });
         }
+        int mode = selectionMode_;
+        pendingActions_.push_back([mode](OcctViewer* v) {
+            v->setSelectionMode(mode);
+        });
         snprintf(statusMsg_, sizeof(statusMsg_), "Show All");
     }
 
@@ -646,7 +663,7 @@ void Viewer::updateClipPlane() {
 }
 
 void Viewer::drawOverlay() {
-    if (!sectionOn_) return;
+    if (sectionOn_) {
 
     static bool gladLoaded = false;
     if (!gladLoaded) {
@@ -792,6 +809,9 @@ void Viewer::drawOverlay() {
     if (!prevBlend) glDisable(GL_BLEND);
     if (!prevDepth) glDisable(GL_DEPTH_TEST);
     if (prevCull)   glEnable(GL_CULL_FACE);
+    }
+
+    drawContextMenu();
 }
 
 void Viewer::extractFaces(ShapeEntry& entry, const TopoDS_Shape& shape,
@@ -803,6 +823,126 @@ void Viewer::extractFaces(ShapeEntry& entry, const TopoDS_Shape& shape,
         TopoDS_Face face = TopoDS::Face(exp.Current());
         entry.faces.emplace_back(face, id++, r, g, b);
     }
+}
+
+// ─── Context menu for selected faces ────────────────────────────────────────
+
+void Viewer::drawContextMenu() {
+    if (contextMenuRequested_) {
+        contextMenuRequested_ = false;
+        ImGui::SetNextWindowPos(ImGui::GetMousePos());
+        ImGui::OpenPopup("Face Context Menu");
+    }
+
+    if (ImGui::BeginPopup("Face Context Menu")) {
+        if (ImGui::MenuItem("Hide")) {
+            hideSelectedFaces();
+            ImGui::CloseCurrentPopup();
+        }
+        if (ImGui::MenuItem("Delete")) {
+            deleteSelectedFaces();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+}
+
+void Viewer::hideSelectedFaces() {
+    OcctViewer* v = viewer();
+    Handle(AIS_InteractiveContext) ctx = v->context();
+
+    // Collect selected faces from the AIS context
+    std::vector<TopoDS_Face> selectedFaces;
+    ctx->InitSelected();
+    while (ctx->MoreSelected()) {
+        Handle(StdSelect_BRepOwner) owner =
+            Handle(StdSelect_BRepOwner)::DownCast(ctx->SelectedOwner());
+        if (!owner.IsNull() && owner->Shape().ShapeType() == TopAbs_FACE)
+            selectedFaces.push_back(TopoDS::Face(owner->Shape()));
+        ctx->NextSelected();
+    }
+
+    if (selectedFaces.empty()) return;
+
+    bool anyUpdated = false;
+    for (auto& entry : shapes_) {
+        if (entry.aisShape.IsNull() || entry.xcafDoc.IsNull()) continue;
+        Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(entry.xcafDoc->Main());
+        Handle(XCAFDoc_ColorTool) ct = XCAFDoc_DocumentTool::ColorTool(entry.xcafDoc->Main());
+        bool entryUpdated = false;
+        for (auto& f : entry.faces) {
+            for (auto& sf : selectedFaces) {
+                if (f.topoFace.IsSame(sf)) {
+                    f.visible = false;
+                    TDF_Label faceLabel = st->AddSubShape(entry.xcafShapeLabel, f.topoFace);
+                    ct->SetVisibility(faceLabel, Standard_False);
+                    entryUpdated = true;
+                    anyUpdated = true;
+                    break;
+                }
+            }
+        }
+        if (entryUpdated) {
+            Handle(XCAFPrs_AISObject)::DownCast(entry.aisShape)->DispatchStyles(Standard_True);
+            ctx->Redisplay(entry.aisShape, true);
+        }
+    }
+
+    ctx->ClearSelected(false);
+    if (anyUpdated)
+        snprintf(statusMsg_, sizeof(statusMsg_), "Hidden %zu face(s)", selectedFaces.size());
+}
+
+void Viewer::deleteSelectedFaces() {
+    OcctViewer* v = viewer();
+    Handle(AIS_InteractiveContext) ctx = v->context();
+
+    // Collect selected faces from the AIS context
+    std::vector<TopoDS_Face> selectedFaces;
+    ctx->InitSelected();
+    while (ctx->MoreSelected()) {
+        Handle(StdSelect_BRepOwner) owner =
+            Handle(StdSelect_BRepOwner)::DownCast(ctx->SelectedOwner());
+        if (!owner.IsNull() && owner->Shape().ShapeType() == TopAbs_FACE)
+            selectedFaces.push_back(TopoDS::Face(owner->Shape()));
+        ctx->NextSelected();
+    }
+
+    if (selectedFaces.empty()) return;
+
+    bool anyUpdated = false;
+    for (auto& entry : shapes_) {
+        if (entry.aisShape.IsNull() || entry.xcafDoc.IsNull()) continue;
+        Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(entry.xcafDoc->Main());
+        Handle(XCAFDoc_ColorTool) ct = XCAFDoc_DocumentTool::ColorTool(entry.xcafDoc->Main());
+        bool entryUpdated = false;
+        auto it = entry.faces.begin();
+        while (it != entry.faces.end()) {
+            bool found = false;
+            for (auto& sf : selectedFaces) {
+                if (it->topoFace.IsSame(sf)) {
+                    TDF_Label faceLabel = st->AddSubShape(entry.xcafShapeLabel, it->topoFace);
+                    ct->SetVisibility(faceLabel, Standard_False);
+                    found = true;
+                    entryUpdated = true;
+                    anyUpdated = true;
+                    break;
+                }
+            }
+            if (found)
+                it = entry.faces.erase(it);
+            else
+                ++it;
+        }
+        if (entryUpdated) {
+            Handle(XCAFPrs_AISObject)::DownCast(entry.aisShape)->DispatchStyles(Standard_True);
+            ctx->Redisplay(entry.aisShape, true);
+        }
+    }
+
+    ctx->ClearSelected(false);
+    if (anyUpdated)
+        snprintf(statusMsg_, sizeof(statusMsg_), "Deleted %zu face(s)", selectedFaces.size());
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

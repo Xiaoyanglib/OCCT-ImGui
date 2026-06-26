@@ -25,6 +25,7 @@
 #define __HISERVICES__ 0
 #endif
 #endif
+#include <set>
 
 #ifdef _WIN32
 #define NOMINMAX
@@ -113,6 +114,7 @@ OcctViewer::OcctViewer(GLFWwindow* glfwWindow)
 
     context_->HighlightStyle()->SetColor(Quantity_NOC_CYAN1);
     context_->SelectionStyle()->SetColor(Quantity_NOC_CYAN1);
+    context_->MainSelector()->AllowOverlapDetection(true);
 
     view_ = viewer_->CreateView();
     view_->SetWindow(win, win->NativeGlContext());
@@ -225,7 +227,26 @@ void OcctViewer::deselectOrClear() {
 
 bool OcctViewer::shiftSelect(int, int) {
     if (context_.IsNull() || view_.IsNull()) return false;
-    context_->SelectDetected(AIS_SelectionScheme_XOR);
+    // Add-only: select if not already selected
+    context_->InitDetected();
+    if (context_->MoreDetected()) {
+        auto owner = context_->DetectedCurrentOwner();
+        if (!owner.IsNull() && !context_->IsSelected(owner))
+            context_->AddOrRemoveSelected(owner, false);
+    }
+    context_->InitSelected();
+    return context_->MoreSelected();
+}
+
+bool OcctViewer::ctrlSelect(int, int) {
+    if (context_.IsNull() || view_.IsNull()) return false;
+    // Remove-only: deselect if currently selected
+    context_->InitDetected();
+    if (context_->MoreDetected()) {
+        auto owner = context_->DetectedCurrentOwner();
+        if (!owner.IsNull() && context_->IsSelected(owner))
+            context_->AddOrRemoveSelected(owner, false);
+    }
     context_->InitSelected();
     return context_->MoreSelected();
 }
@@ -242,6 +263,49 @@ void OcctViewer::shiftSelectRectangle(int x1, int y1, int x2, int y2) {
     context_->SelectRectangle(NCollection_Vec2<int>(std::min(x1, x2), std::min(y1, y2)),
                               NCollection_Vec2<int>(std::max(x1, x2), std::max(y1, y2)),
                               view_, AIS_SelectionScheme_XOR);
+}
+
+void OcctViewer::selectRectangleOcclusionAware(int x1, int y1, int x2, int y2, bool isShift, bool isCtrl) {
+    if (context_.IsNull() || view_.IsNull()) return;
+
+    int xMin = std::min(x1, x2);
+    int yMin = std::min(y1, y2);
+    int xMax = std::max(x1, x2);
+    int yMax = std::max(y1, y2);
+    int step = 8;
+
+    // Collect unique entity owners via point-sampling ray-casts
+    std::set<Handle(SelectMgr_EntityOwner)> owners;
+
+    for (int y = yMin; y <= yMax; y += step) {
+        for (int x = xMin; x <= xMax; x += step) {
+            context_->MoveTo(x, y, view_, true);
+            context_->InitDetected();
+            if (context_->MoreDetected()) {
+                owners.insert(context_->DetectedCurrentOwner());
+            }
+        }
+    }
+
+    if (isCtrl) {
+        // Ctrl: only remove currently selected entities
+        for (auto& owner : owners) {
+            if (context_->IsSelected(owner))
+                context_->AddOrRemoveSelected(owner, false);
+        }
+    } else if (isShift) {
+        // Shift: only add, never remove
+        for (auto& owner : owners) {
+            if (!context_->IsSelected(owner))
+                context_->AddOrRemoveSelected(owner, false);
+        }
+    } else {
+        // Replace: clear and add all detected
+        context_->ClearSelected(false);
+        for (auto& owner : owners) {
+            context_->AddOrRemoveSelected(owner, false);
+        }
+    }
 }
 
 void OcctViewer::clearSelection() {

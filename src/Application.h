@@ -86,7 +86,7 @@ protected:
 
     bool showViewerPanel_ = true;
     bool showObjectPanel_ = true;
-    int  selectionMode_   = AIS_Shape::SelectionMode(TopAbs_SHAPE);
+    int  selectionMode_   = AIS_Shape::SelectionMode(TopAbs_FACE);
     char statusMsg_[256]  = {};
     float bgColor_[3]     = {1.0f, 1.0f, 1.0f};
     bool  orthographic_   = true;
@@ -95,6 +95,7 @@ protected:
     bool panning_         = false;
     bool selecting_       = false;
     bool selectShift_     = false;
+    bool selectCtrl_      = false;
     int  selStartX_ = 0, selStartY_ = 0;
     int  selEndX_   = 0, selEndY_   = 0;
     int  clickStartX_ = 0, clickStartY_ = 0;
@@ -103,6 +104,9 @@ protected:
 
     bool pendingRectSelect_ = false;
     bool pendingRectShift_  = false;
+    bool pendingRectCtrl_   = false;
+    bool contextMenuRequested_ = false;
+    int  rightClickStartX_ = 0, rightClickStartY_ = 0;
     int  rectX1_ = 0, rectY1_ = 0, rectX2_ = 0, rectY2_ = 0;
 
 private:

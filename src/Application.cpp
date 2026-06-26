@@ -63,20 +63,34 @@ void Application::glfwMouseButtonCallback(GLFWwindow* window, int button, int ac
     float pr = g_app->pixelRatio_;
     int ixFb = static_cast<int>(x * pr), iyFb = static_cast<int>(y * pr);
     bool shift = (mods & GLFW_MOD_SHIFT) != 0;
+    bool ctrl  = (mods & GLFW_MOD_CONTROL) != 0;
 
     if (button == GLFW_MOUSE_BUTTON_LEFT) {
         if (action == GLFW_PRESS) {
             if (shift) {
-                // Shift+left: toggle-pick on press, then always allow rect-select drag.
+                // Shift+left: add to selection on press, then allow rect-select drag.
                 v->shiftSelect(ixFb, iyFb);
                 g_app->selecting_   = true;
                 g_app->selectShift_ = true;
+                g_app->selectCtrl_  = false;
+                g_app->selStartX_   = ix;
+                g_app->selStartY_   = iy;
+                g_app->selEndX_     = ix;
+                g_app->selEndY_     = iy;
+            } else if (ctrl) {
+                // Ctrl+left: remove from selection on press, then allow rect-select drag.
+                v->ctrlSelect(ixFb, iyFb);
+                g_app->selecting_   = true;
+                g_app->selectCtrl_  = true;
+                g_app->selectShift_ = false;
                 g_app->selStartX_   = ix;
                 g_app->selStartY_   = iy;
                 g_app->selEndX_     = ix;
                 g_app->selEndY_     = iy;
             } else {
                 // Plain left → record for click-vs-drag detection.
+                g_app->selectShift_ = false;
+                g_app->selectCtrl_  = false;
                 g_app->selecting_   = false;
                 g_app->panning_     = true;
                 g_app->clickStartX_ = ix;
@@ -89,6 +103,7 @@ void Application::glfwMouseButtonCallback(GLFWwindow* window, int button, int ac
                 // Defer selection to postFrame — avoids blocking the render thread.
                 g_app->pendingRectSelect_ = true;
                 g_app->pendingRectShift_  = g_app->selectShift_;
+                g_app->pendingRectCtrl_   = g_app->selectCtrl_;
                 g_app->rectX1_ = g_app->selStartX_;
                 g_app->rectY1_ = g_app->selStartY_;
                 g_app->rectX2_ = g_app->selEndX_;
@@ -104,8 +119,16 @@ void Application::glfwMouseButtonCallback(GLFWwindow* window, int button, int ac
             g_app->panning_ = false;
         }
     } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-        if (action == GLFW_PRESS)
+        if (action == GLFW_PRESS) {
             v->startRotation(ixFb, iyFb);
+            g_app->rightClickStartX_ = ix;
+            g_app->rightClickStartY_ = iy;
+        } else if (action == GLFW_RELEASE) {
+            int dx = ix - g_app->rightClickStartX_;
+            int dy = iy - g_app->rightClickStartY_;
+            if (abs(dx) < 4 && abs(dy) < 4)
+                g_app->contextMenuRequested_ = true;
+        }
     } else if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
         g_app->lastMouseY_ = iy;
     }
@@ -440,14 +463,10 @@ void Application::setupDockLayout(ImGuiID dockspaceId) {
     ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
     ImGui::DockBuilderSetNodeSize(dockspaceId, ImGui::GetMainViewport()->Size);
 
-    ImGuiID dockBottom, dockCenter;
-    ImGui::DockBuilderSplitNode(dockspaceId, ImGuiDir_Down, 0.25f, &dockBottom, &dockCenter);
-
     ImGuiID dockObjects, dock3D;
-    ImGui::DockBuilderSplitNode(dockCenter, ImGuiDir_Left, 0.18f, &dockObjects, &dock3D);
+    ImGui::DockBuilderSplitNode(dockspaceId, ImGuiDir_Left, 0.18f, &dockObjects, &dock3D);
 
-    ImGui::DockBuilderDockWindow("Objects",         dockObjects);
-    ImGui::DockBuilderDockWindow("Viewer",          dockBottom);
+    ImGui::DockBuilderDockWindow("Objects", dockObjects);
 
     ImGui::DockBuilderFinish(dockspaceId);
 }
@@ -551,7 +570,7 @@ void Application::drawDockSpace() {
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("View")) {
-            ImGui::MenuItem("Viewer",    "F7", &showViewerPanel_);
+            ImGui::MenuItem("Controls",  "F7", &showViewerPanel_);
             ImGui::MenuItem("Objects",   "F8", &showObjectPanel_);
             ImGui::Separator();
             ImGui::EndMenu();
@@ -600,9 +619,13 @@ void Application::init() {}
 void Application::drawGui() {}
 
 void Application::drawViewerPanel() {
-    ImGui::Begin("Viewer", &showViewerPanel_);
+    ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(vp->Pos.x + vp->Size.x - 10.0f, vp->Pos.y + vp->Size.y - (22.0f * fontScale_ + 6.0f)),
+                            ImGuiCond_Always, ImVec2(1.0f, 1.0f));
 
-    ImGui::Text("Mouse Controls");
+    ImGui::Begin("Controls", &showViewerPanel_, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
+
+    ImGui::Text("Mouse");
     ImGui::Separator();
     ImGui::BulletText("Left drag:   Pan");
     ImGui::BulletText("Right drag:  Rotate");
@@ -613,8 +636,15 @@ void Application::drawViewerPanel() {
     ImGui::Text("Keyboard");
     ImGui::Separator();
     ImGui::BulletText("F:     Fit All");
-    ImGui::BulletText("F7:    Toggle Viewer");
+    ImGui::BulletText("F7:    Toggle Controls");
     ImGui::BulletText("F8:    Toggle Objects");
+
+    ImGui::Spacing();
+    ImGui::Text("Selection");
+    ImGui::Separator();
+    ImGui::BulletText("Drag:      Replace select");
+    ImGui::BulletText("Shift+drag: Add select");
+    ImGui::BulletText("Ctrl+drag:  Remove select");
 
     ImGui::End();
 }
@@ -623,14 +653,30 @@ void Application::onImport() {}
 void Application::onExport() {}
 void Application::onImportFile(const char*) {}
 void Application::postFrame() {
+    // Real-time selection during drag (before release fires)
+    if (selecting_) {
+        int dx = std::abs(selEndX_ - selStartX_);
+        int dy = std::abs(selEndY_ - selStartY_);
+        if (dx > 3 || dy > 3) {
+            float pr = pixelRatio_;
+            viewer_->selectRectangleOcclusionAware(selStartX_ * pr, selStartY_ * pr,
+                                                   selEndX_ * pr, selEndY_ * pr,
+                                                   selectShift_, selectCtrl_);
+        }
+    }
+
     if (pendingRectSelect_) {
         float pr = pixelRatio_;
-        if (pendingRectShift_)
-            viewer_->shiftSelectRectangle(rectX1_ * pr, rectY1_ * pr,
-                                          rectX2_ * pr, rectY2_ * pr);
-        else
-            viewer_->selectRectangle(rectX1_ * pr, rectY1_ * pr,
-                                     rectX2_ * pr, rectY2_ * pr);
+        int dx = std::abs(rectX1_ - rectX2_);
+        int dy = std::abs(rectY1_ - rectY2_);
+        if (dx <= 3 && dy <= 3) {
+            // Click (no drag) → add or remove under cursor
+            if (pendingRectCtrl_)
+                viewer_->ctrlSelect(rectX1_ * pr, rectY1_ * pr);
+            else if (pendingRectShift_)
+                viewer_->shiftSelect(rectX1_ * pr, rectY1_ * pr);
+        }
+        // Drags were already handled by real-time selection above.
         pendingRectSelect_ = false;
     }
 }
