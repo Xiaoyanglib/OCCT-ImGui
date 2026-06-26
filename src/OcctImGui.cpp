@@ -183,6 +183,7 @@ void Viewer::importFile(const char* path) {
         }
         v->displayShape(ais);
         v->setSelectionMode(selectionMode_);
+        v->fitAll();
         snprintf(statusMsg_, sizeof(statusMsg_), "Imported %s (%d faces)", buf, (int)entry.faces.size());
         nextId_++;
     });
