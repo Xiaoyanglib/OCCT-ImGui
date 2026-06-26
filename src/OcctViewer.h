@@ -95,7 +95,10 @@ public:
     TopoDS_Shape importShape(const char* path,
                               std::vector<FaceColorInfo>* outColors = nullptr,
                               TDF_Label* outXcafLabel = nullptr,
-                              Handle(TDocStd_Document)* outXcafDoc = nullptr);
+                              Handle(TDocStd_Document)* outXcafDoc = nullptr,
+                              std::vector<TDF_Label>* outSolidLabels = nullptr,
+                              std::vector<int>* outSolidFaceCounts = nullptr,
+                              std::vector<std::vector<FaceColorInfo>>* outSolidColors = nullptr);
 
     /// Write a shape to a CAD file. If colors is non-null, writes per-face
     /// colors for STEP/IGES (ignored for BREP/STL).

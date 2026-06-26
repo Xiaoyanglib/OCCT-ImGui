@@ -60,6 +60,8 @@ public:
         float color[3] = {0.7f, 0.7f, 0.7f};
         double tx = 0, ty = 0, tz = 0;
         std::vector<FaceEntry> faces;
+        int parentIdx = -1;
+        bool childrenExpanded = true;
         ShapeEntry(const Handle(AIS_Shape)& s, const std::string& n, bool v,
                    float cr, float cg, float cb,
                    double px = 0, double py = 0, double pz = 0)

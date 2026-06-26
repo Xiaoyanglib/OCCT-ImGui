@@ -421,7 +421,10 @@ static void extractColorsFromDoc(const TDF_Label& shapeLabel,
 TopoDS_Shape OcctViewer::importShape(const char* path,
                                       std::vector<FaceColorInfo>* outColors,
                                       TDF_Label* outXcafLabel,
-                                      Handle(TDocStd_Document)* outXcafDoc) {
+                                      Handle(TDocStd_Document)* outXcafDoc,
+                                      std::vector<TDF_Label>* outSolidLabels,
+                                      std::vector<int>* outSolidFaceCounts,
+                                      std::vector<std::vector<FaceColorInfo>>* outSolidColors) {
     TopoDS_Shape result;
     const char* ext = fileExt(path);
     if (!*ext) return result;
@@ -436,11 +439,24 @@ TopoDS_Shape OcctViewer::importShape(const char* path,
             Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
             TDF_LabelSequence freeShapes;
             st->GetFreeShapes(freeShapes);
-            if (freeShapes.Length() > 0) {
-                if (outXcafLabel) *outXcafLabel = freeShapes.Value(1);
-                if (outXcafDoc) *outXcafDoc = doc;
-                extractColorsFromDoc(freeShapes.Value(1), st->GetShape(freeShapes.Value(1)), *outColors);
+            for (int k = 1; k <= freeShapes.Length(); k++) {
+                TopoDS_Shape s = st->GetShape(freeShapes.Value(k));
+                std::vector<FaceColorInfo> sc;
+                extractColorsFromDoc(freeShapes.Value(k), s, sc);
+                for (auto& fc : sc) outColors->push_back(fc);
+                if (outSolidLabels) outSolidLabels->push_back(freeShapes.Value(k));
+                if (outSolidFaceCounts) outSolidFaceCounts->push_back((int)sc.size());
+                if (outSolidColors) outSolidColors->push_back(sc);
             }
+            if (freeShapes.Length() == 0) {
+                extractColorsFromDoc(doc->Main(), result, *outColors);
+                if (outSolidFaceCounts) outSolidFaceCounts->push_back((int)outColors->size());
+                if (outSolidColors) outSolidColors->push_back(*outColors);
+            }
+            if (outXcafLabel)
+                *outXcafLabel = freeShapes.Length() > 0 ? freeShapes.Value(1) : TDF_Label();
+            if (outXcafDoc) *outXcafDoc = doc;
+            for (auto& fc : *outColors) fc.face.Nullify();
         } else {
             STEPControl_Reader reader;
             if (reader.ReadFile(path) != IFSelect_RetDone) return result;
@@ -457,11 +473,24 @@ TopoDS_Shape OcctViewer::importShape(const char* path,
             Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
             TDF_LabelSequence freeShapes;
             st->GetFreeShapes(freeShapes);
-            if (freeShapes.Length() > 0) {
-                if (outXcafLabel) *outXcafLabel = freeShapes.Value(1);
-                if (outXcafDoc) *outXcafDoc = doc;
-                extractColorsFromDoc(freeShapes.Value(1), st->GetShape(freeShapes.Value(1)), *outColors);
+            for (int k = 1; k <= freeShapes.Length(); k++) {
+                TopoDS_Shape s = st->GetShape(freeShapes.Value(k));
+                std::vector<FaceColorInfo> sc;
+                extractColorsFromDoc(freeShapes.Value(k), s, sc);
+                for (auto& fc : sc) outColors->push_back(fc);
+                if (outSolidLabels) outSolidLabels->push_back(freeShapes.Value(k));
+                if (outSolidFaceCounts) outSolidFaceCounts->push_back((int)sc.size());
+                if (outSolidColors) outSolidColors->push_back(sc);
             }
+            if (freeShapes.Length() == 0) {
+                extractColorsFromDoc(doc->Main(), result, *outColors);
+                if (outSolidFaceCounts) outSolidFaceCounts->push_back((int)outColors->size());
+                if (outSolidColors) outSolidColors->push_back(*outColors);
+            }
+            if (outXcafLabel)
+                *outXcafLabel = freeShapes.Length() > 0 ? freeShapes.Value(1) : TDF_Label();
+            if (outXcafDoc) *outXcafDoc = doc;
+            for (auto& fc : *outColors) fc.face.Nullify();
         } else {
             IGESControl_Reader reader;
             if (reader.ReadFile(path) != IFSelect_RetDone) return result;

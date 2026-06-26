@@ -67,7 +67,7 @@ namespace OcctImGui {
 static void setXcafFaceColor(const Viewer::ShapeEntry& entry,
                               const TopoDS_Face& face,
                               float r, float g, float b) {
-    if (entry.xcafDoc.IsNull()) return;
+    if (entry.xcafDoc.IsNull() || entry.xcafShapeLabel.IsNull()) return;
     Handle(XCAFDoc_ShapeTool) st =
         XCAFDoc_DocumentTool::ShapeTool(entry.xcafDoc->Main());
     Handle(XCAFDoc_ColorTool) ct =
@@ -75,6 +75,11 @@ static void setXcafFaceColor(const Viewer::ShapeEntry& entry,
     TDF_Label fl = st->AddSubShape(entry.xcafShapeLabel, face);
     ct->SetColor(fl,
         Quantity_Color(r, g, b, Quantity_TOC_RGB), XCAFDoc_ColorSurf);
+    Handle(XCAFDoc_VisMaterialTool) mt =
+        XCAFDoc_DocumentTool::VisMaterialTool(entry.xcafDoc->Main());
+    TDF_Label baseMat;
+    if (mt->GetShapeMaterial(entry.xcafShapeLabel, baseMat))
+        mt->SetShapeMaterial(fl, baseMat);
 }
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -130,6 +135,26 @@ void Viewer::fitAll() {
     pendingActions_.push_back([](OcctViewer* v) { v->fitAll(); });
 }
 
+static Handle(AIS_ColoredShape) makeAisForLabel(Handle(TDocStd_Document)& doc,
+                                                   const TDF_Label& label) {
+    XCAFDoc_VisMaterialCommon cm;
+    cm.DiffuseColor  = Quantity_Color(0.7f, 0.7f, 0.7f, Quantity_TOC_RGB);
+    cm.AmbientColor  = Quantity_Color(0.14f, 0.14f, 0.14f, Quantity_TOC_RGB);
+    cm.SpecularColor = Quantity_Color(0.5f, 0.5f, 0.5f, Quantity_TOC_RGB);
+    cm.Shininess     = 0.6f;
+    Handle(XCAFDoc_VisMaterial) mat = new XCAFDoc_VisMaterial();
+    mat->SetCommonMaterial(cm);
+    Handle(XCAFDoc_VisMaterialTool) mt =
+        XCAFDoc_DocumentTool::VisMaterialTool(doc->Main());
+    TDF_Label ml = mt->AddMaterial(mat, "Plastic");
+    mt->SetShapeMaterial(label, ml);
+    Handle(AIS_ColoredShape) a = new XCAFPrs_AISObject(label);
+    a->Attributes()->SetFaceBoundaryDraw(true);
+    a->Attributes()->SetFaceBoundaryAspect(
+        new Prs3d_LineAspect(Quantity_NOC_BLACK, Aspect_TOL_SOLID, 1.0));
+    return a;
+}
+
 void Viewer::importFile(const char* path) {
     std::string p(path);
     snprintf(statusMsg_, sizeof(statusMsg_), "Importing %s...", path);
@@ -137,30 +162,20 @@ void Viewer::importFile(const char* path) {
         std::vector<FaceColorInfo> faceColors;
         TDF_Label xcafLabel;
         Handle(TDocStd_Document) xcafDoc;
-        TopoDS_Shape shape = v->importShape(p.c_str(), &faceColors, &xcafLabel, &xcafDoc);
+        std::vector<TDF_Label> solidLabels;
+        std::vector<int> solidFaceCounts;
+        std::vector<std::vector<FaceColorInfo>> solidColors;
+        TopoDS_Shape shape = v->importShape(p.c_str(), &faceColors, &xcafLabel, &xcafDoc,
+                                             &solidLabels, &solidFaceCounts, &solidColors);
         if (shape.IsNull()) {
             snprintf(statusMsg_, sizeof(statusMsg_), "Import failed: %s", p.c_str());
             return;
         }
-        // Apply plastic VisMaterial to the imported doc so DispatchStyles picks it up
-        if (!xcafDoc.IsNull() && !xcafLabel.IsNull()) {
-            XCAFDoc_VisMaterialCommon cm;
-            cm.DiffuseColor  = Quantity_Color(0.7f, 0.7f, 0.7f, Quantity_TOC_RGB);
-            cm.AmbientColor  = Quantity_Color(0.14f, 0.14f, 0.14f, Quantity_TOC_RGB);
-            cm.SpecularColor = Quantity_Color(0.5f, 0.5f, 0.5f, Quantity_TOC_RGB);
-            cm.Shininess     = 0.6f;
-            Handle(XCAFDoc_VisMaterial) mat = new XCAFDoc_VisMaterial();
-            mat->SetCommonMaterial(cm);
-            Handle(XCAFDoc_VisMaterialTool) mt =
-                XCAFDoc_DocumentTool::VisMaterialTool(xcafDoc->Main());
-            TDF_Label matLabel = mt->AddMaterial(mat, "Plastic");
-            mt->SetShapeMaterial(xcafLabel, matLabel);
+        if (solidLabels.empty()) {
+            solidLabels.push_back(xcafLabel);
+            solidFaceCounts.push_back((int)faceColors.size());
+            solidColors.push_back(faceColors);
         }
-
-        Handle(AIS_ColoredShape) ais = new XCAFPrs_AISObject(xcafLabel);
-        ais->Attributes()->SetFaceBoundaryDraw(true);
-    ais->Attributes()->SetFaceBoundaryAspect(
-        new Prs3d_LineAspect(Quantity_NOC_BLACK, Aspect_TOL_SOLID, 1.0));
         const char* name = strrchr(p.c_str(), '/');
 #ifdef _WIN32
         const char* bs = strrchr(p.c_str(), '\\');
@@ -170,20 +185,55 @@ void Viewer::importFile(const char* path) {
         char buf[64];
         strncpy(buf, name, sizeof(buf) - 1);
         buf[sizeof(buf) - 1] = '\0';
-        auto& entry = shapes_.emplace_back(ais, buf, true, 0.7f, 0.7f, 0.7f);
-        entry.xcafDoc = xcafDoc;
-        entry.xcafShapeLabel = xcafLabel;
-        extractFaces(entry, shape, 0.7f, 0.7f, 0.7f);
-        for (size_t i = 0; i < faceColors.size() && i < entry.faces.size(); i++) {
-            entry.faces[i].color[0] = faceColors[i].r;
-            entry.faces[i].color[1] = faceColors[i].g;
-            entry.faces[i].color[2] = faceColors[i].b;
-            if (faceColors[i].r != 0.7f || faceColors[i].g != 0.7f || faceColors[i].b != 0.7f)
-                entry.faces[i].useCustomColor = true;
+
+        if (solidLabels.size() <= 1) {
+            // Single solid — flat entry
+            auto a = makeAisForLabel(xcafDoc, solidLabels[0]);
+            v->displayShape(a);
+            auto& entry = shapes_.emplace_back(a, buf, true, 0.7f, 0.7f, 0.7f);
+            entry.xcafDoc = xcafDoc;
+            entry.xcafShapeLabel = solidLabels[0];
+            extractFaces(entry, shape, 0.7f, 0.7f, 0.7f);
+            for (size_t i = 0; i < faceColors.size() && i < entry.faces.size(); i++) {
+                entry.faces[i].color[0] = faceColors[i].r;
+                entry.faces[i].color[1] = faceColors[i].g;
+                entry.faces[i].color[2] = faceColors[i].b;
+                if (faceColors[i].r != 0.7f || faceColors[i].g != 0.7f || faceColors[i].b != 0.7f)
+                    entry.faces[i].useCustomColor = true;
+            }
+        } else {
+            // Multi-solid — parent (no AIS) + child per solid
+            int parentIdx = (int)shapes_.size();
+            auto& parent = shapes_.emplace_back(Handle(AIS_Shape)(), buf, true, 0.7f, 0.7f, 0.7f);
+            parent.xcafDoc = xcafDoc;
+            for (size_t si = 0; si < solidLabels.size(); si++) {
+                auto a = makeAisForLabel(xcafDoc, solidLabels[si]);
+                v->displayShape(a);
+                char sn[32]; snprintf(sn, sizeof(sn), "Solid %d", (int)si+1);
+                auto& child = shapes_.emplace_back(a, sn, true, 0.7f, 0.7f, 0.7f);
+                child.parentIdx = parentIdx;
+                child.xcafDoc = xcafDoc;
+                child.xcafShapeLabel = solidLabels[si];
+                Handle(XCAFDoc_ShapeTool) st2 =
+                    XCAFDoc_DocumentTool::ShapeTool(xcafDoc->Main());
+                TopoDS_Shape ss = st2->GetShape(solidLabels[si]);
+                extractFaces(child, ss, 0.7f, 0.7f, 0.7f);
+                int idOff = 0;
+                for (size_t sj = 0; sj < si; sj++) idOff += solidFaceCounts[sj];
+                for (auto& f : child.faces) f.id += idOff;
+                auto& sc = (si < solidColors.size()) ? solidColors[si] : faceColors;
+                for (size_t i = 0; i < sc.size() && i < child.faces.size(); i++) {
+                    child.faces[i].color[0] = sc[i].r;
+                    child.faces[i].color[1] = sc[i].g;
+                    child.faces[i].color[2] = sc[i].b;
+                    if (sc[i].r != 0.7f || sc[i].g != 0.7f || sc[i].b != 0.7f)
+                        child.faces[i].useCustomColor = true;
+                }
+            }
         }
-        v->displayShape(ais);
         v->setSelectionMode(selectionMode_);
-        snprintf(statusMsg_, sizeof(statusMsg_), "Imported %s (%d faces)", buf, (int)entry.faces.size());
+        snprintf(statusMsg_, sizeof(statusMsg_), "Imported %s (%d solids, %d faces)",
+                 buf, (int)solidLabels.size(), (int)faceColors.size());
         nextId_++;
     });
 }
@@ -264,7 +314,13 @@ void Viewer::postFrame() {
 
     shapes_.erase(
         std::remove_if(shapes_.begin(), shapes_.end(),
-                       [](const ShapeEntry& e) { return e.aisShape.IsNull(); }),
+                       [&](const ShapeEntry& e) {
+                           if (!e.aisShape.IsNull()) return false;
+                           int idx = (int)(&e - shapes_.data());
+                           for (auto& o : shapes_)
+                               if (o.parentIdx == idx) return false;
+                           return true;
+                       }),
         shapes_.end());
 
     v->updateViewer();
@@ -371,22 +427,64 @@ void Viewer::drawObjectPanel() {
         ImGui::TextDisabled("No objects in scene");
     }
 
+    // Collect children per parent
+    std::vector<std::vector<int>> kids(shapes_.size());
+    for (int ci = 0; ci < (int)shapes_.size(); ++ci) {
+        int p = shapes_[ci].parentIdx;
+        if (p >= 0 && p < (int)kids.size()) kids[p].push_back(ci);
+    }
+
+    // Aggregate colors and visibility (bottom-up feedback)
+    for (int i = 0; i < (int)shapes_.size(); ++i) {
+        auto& e = shapes_[i];
+        if (i < (int)kids.size() && !kids[i].empty()) {
+            int nFaces=0; bool same=true;
+            float c0r=0,c0g=0,c0b=0;
+            bool anyChildVis=false;
+            for (int ci : kids[i]) {
+                if (shapes_[ci].visible) anyChildVis=true;
+                for (auto& f : shapes_[ci].faces) {
+                    if (nFaces==0) {c0r=f.color[0];c0g=f.color[1];c0b=f.color[2];}
+                    else if (f.color[0]!=c0r||f.color[1]!=c0g||f.color[2]!=c0b) same=false;
+                    nFaces++;
+                }
+            }
+            if (nFaces>0 && same) {e.color[0]=c0r;e.color[1]=c0g;e.color[2]=c0b;}
+            e.visible = anyChildVis;
+        }
+    }
+    for (int i = 0; i < (int)shapes_.size(); ++i) {
+        auto& ch = shapes_[i];
+        if (!ch.faces.empty()) {
+            bool same=true;
+            auto& f0=ch.faces[0];
+            bool anyFaceVis=false;
+            for (auto& f : ch.faces) {
+                if(f.visible) anyFaceVis=true;
+                if(f.color[0]!=f0.color[0]||f.color[1]!=f0.color[1]||f.color[2]!=f0.color[2]) same=false;
+            }
+            if (same) {ch.color[0]=f0.color[0];ch.color[1]=f0.color[1];ch.color[2]=f0.color[2];}
+            ch.visible = anyFaceVis;
+        }
+    }
+
     for (int i = 0; i < (int)shapes_.size(); ++i) {
         auto& entry = shapes_[i];
+        if (entry.parentIdx >= 0) continue;
         ImGui::PushID(i);
 
         // ── Parent model row ──
         bool expanded = entry.facesExpanded;
         bool hasFaces = !entry.faces.empty();
-        if (hasFaces) {
+        bool hasKids = i < (int)kids.size() && !kids[i].empty();
+        if (hasFaces || hasKids) {
             ImGui::AlignTextToFramePadding();
-            if (ImGui::ArrowButton("##expand", expanded ?
+            bool isExp = hasKids ? entry.childrenExpanded : expanded;
+            if (ImGui::ArrowButton("##expand", isExp ?
                 ImGuiDir_Down : ImGuiDir_Right)) {
-                entry.facesExpanded = !expanded;
+                if (hasKids) entry.childrenExpanded = !isExp;
+                else entry.facesExpanded = !isExp;
             }
-            ImGui::SameLine();
-        } else if (hasFaces) {
-            ImGui::Dummy(ImVec2(ImGui::GetFrameHeight(), 0));
             ImGui::SameLine();
         } else {
             ImGui::Dummy(ImVec2(ImGui::GetFrameHeight(), 0));
@@ -396,18 +494,43 @@ void Viewer::drawObjectPanel() {
         if (ImGui::Checkbox("##vis", &entry.visible)) {
             bool vis = entry.visible;
             for (auto& f : entry.faces) f.visible = vis;
-            pendingActions_.push_back([shape = entry.aisShape, vis](OcctViewer* v) {
-                if (vis) v->displayShape(shape, false);
-                else     v->context()->Erase(shape, false);
+            auto s = entry.aisShape;
+            std::vector<int> cids;
+            if (i < (int)kids.size()) cids = kids[i];
+            for (int ci : cids) {
+                shapes_[ci].visible = vis;
+                for (auto& f : shapes_[ci].faces) f.visible = vis;
+            }
+            pendingActions_.push_back([this, s, cids, vis](OcctViewer* v) {
+                if (!s.IsNull()) {
+                    if (vis) v->displayShape(s, false);
+                    else v->context()->Erase(s, false);
+                }
+                for (int ci : cids) {
+                    auto& ch = shapes_[ci];
+                    if (vis) v->displayShape(ch.aisShape, false);
+                    else v->context()->Erase(ch.aisShape, false);
+                }
             });
         }
         ImGui::SameLine();
-        // Rainbow if 2+ faces have different colors
+        // Rainbow if faces differ, or if children differ
         bool rainbow = false;
-        if (entry.faces.size() >= 2) {
-            float c0 = entry.faces[0].color[0], c1 = entry.faces[0].color[1], c2 = entry.faces[0].color[2];
-            for (auto& f : entry.faces) {
-                if (f.color[0] != c0 || f.color[1] != c1 || f.color[2] != c2) { rainbow = true; break; }
+        std::vector<std::reference_wrapper<FaceEntry>> allFacesForParent;
+        if (hasKids) {
+            for (int ci : kids[i])
+                for (auto& f : shapes_[ci].faces)
+                    allFacesForParent.push_back(f);
+        } else {
+            for (auto& f : entry.faces)
+                allFacesForParent.push_back(f);
+        }
+        if (allFacesForParent.size() >= 2) {
+            auto& f0 = allFacesForParent[0].get();
+            float c0=f0.color[0],c1=f0.color[1],c2=f0.color[2];
+            for (auto& fr : allFacesForParent) {
+                auto& f = fr.get();
+                if (f.color[0]!=c0||f.color[1]!=c1||f.color[2]!=c2){rainbow=true;break;}
             }
         }
         ImVec2 swatchPos = ImGui::GetCursorScreenPos();
@@ -415,27 +538,23 @@ void Viewer::drawObjectPanel() {
         if (ImGui::ColorEdit3("##color", entry.color,
             ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoBorder)) {
             float r = entry.color[0], g = entry.color[1], b = entry.color[2];
-            auto shape = entry.aisShape;
-            for (auto& f : entry.faces) {
-                f.color[0] = r; f.color[1] = g; f.color[2] = b;
-                f.useCustomColor = false;
+            std::vector<int> cidsToUpdate;
+            if (hasKids) {
+                for (int ci : kids[i]) cidsToUpdate.push_back(ci);
+            } else {
+                cidsToUpdate.push_back(i);
             }
-            // Re-apply uniform color to all faces via XCAF document
-            std::vector<TopoDS_Face> allFaces;
-            for (auto& f : entry.faces) allFaces.push_back(f.topoFace);
-            int si = i;
-            pendingActions_.push_back([this, si, allFaces, r, g, b](OcctViewer* v) {
-                auto& ent = shapes_[si];
-                if (ent.xcafDoc.IsNull()) return;
-                // Update base color on shape label
-                Handle(XCAFDoc_ColorTool) ct =
-                    XCAFDoc_DocumentTool::ColorTool(ent.xcafDoc->Main());
-                ct->SetColor(ent.xcafShapeLabel,
-                    Quantity_Color(r, g, b, Quantity_TOC_RGB), XCAFDoc_ColorSurf);
-                // Update per-face colors
-                for (auto& tf : allFaces)
-                    setXcafFaceColor(ent, tf, r, g, b);
-                v->context()->Redisplay(ent.aisShape, true);
+            int parentI = i;
+            pendingActions_.push_back([this, cidsToUpdate, r, g, b](OcctViewer* v) {
+                for (int si : cidsToUpdate) {
+                    auto& ent = shapes_[si];
+                    for (auto& f : ent.faces) {
+                        f.color[0]=r;f.color[1]=g;f.color[2]=b;f.useCustomColor=false;
+                        setXcafFaceColor(ent, f.topoFace, r, g, b);
+                    }
+                    if (!ent.aisShape.IsNull())
+                        v->context()->Redisplay(ent.aisShape, true);
+                }
             });
         }
         if (rainbow) {
@@ -472,8 +591,15 @@ void Viewer::drawObjectPanel() {
             ImGui::Text("Remove '%s'?", entry.name.c_str());
             if (ImGui::Button("Yes", ImVec2(80, 0))) {
                 auto shape = entry.aisShape;
-                pendingActions_.push_back([shape](OcctViewer* v) {
-                    v->removeShape(shape, true);
+                std::vector<int> cids;
+                if (i < (int)kids.size()) cids = kids[i];
+                pendingActions_.push_back([this, shape, cids](OcctViewer* v) {
+                    if (!shape.IsNull()) v->removeShape(shape, true);
+                    for (int ci : cids) {
+                        auto& ch = shapes_[ci];
+                        if (!ch.aisShape.IsNull()) v->removeShape(ch.aisShape, true);
+                        ch.aisShape.Nullify(); ch.faces.clear();
+                    }
                 });
                 // face removal handled by parent AIS_ColoredShape
                 snprintf(statusMsg_, sizeof(statusMsg_), "Deleted '%s'", entry.name.c_str());
@@ -487,6 +613,90 @@ void Viewer::drawObjectPanel() {
             ImGui::EndPopup();
         }
 
+        // ── Expand: children (solids) ──
+        if (hasKids && entry.childrenExpanded) {
+                for (int ci : kids[i]) {
+                    auto& ch = shapes_[ci];
+                    bool chExp = ch.facesExpanded;
+                    bool chHasFaces = !ch.faces.empty();
+                    ImGui::PushID(10000 + ci);
+                    ImGui::Indent(16.0f);
+                    // Face expand arrow (matching single-solid layout)
+                    if (chHasFaces) {
+                        ImGui::AlignTextToFramePadding();
+                        if (ImGui::ArrowButton("##cexp", chExp ? ImGuiDir_Down : ImGuiDir_Right))
+                            ch.facesExpanded = !chExp;
+                        ImGui::SameLine();
+                    } else {
+                        ImGui::Dummy(ImVec2(ImGui::GetFrameHeight(), 0));
+                        ImGui::SameLine();
+                    }
+                    // Visibility
+                    if (ImGui::Checkbox("##cvis", &ch.visible)) {
+                        bool vis = ch.visible;
+                        for (auto& f : ch.faces) f.visible = vis;
+                        auto cs = ch.aisShape;
+                        pendingActions_.push_back([cs, vis](OcctViewer* v) {
+                            if (vis) v->displayShape(cs, false);
+                            else v->context()->Erase(cs, false);
+                        });
+                    }
+                    ImGui::SameLine();
+                    // Color swatch + rainbow
+                    bool cRainbow = false;
+                    if (ch.faces.size() >= 2) {
+                        auto& f0 = ch.faces[0];
+                        for (auto& f : ch.faces)
+                            if (f.color[0]!=f0.color[0]||f.color[1]!=f0.color[1]||f.color[2]!=f0.color[2])
+                                {cRainbow=true;break;}
+                    }
+                    ImVec2 cSwPos = ImGui::GetCursorScreenPos();
+                    float cSwH = ImGui::GetFrameHeight();
+                    if (ImGui::ColorEdit3("##csc", ch.color,
+                        ImGuiColorEditFlags_NoInputs|ImGuiColorEditFlags_NoLabel|ImGuiColorEditFlags_NoBorder)) {
+                        float cr=ch.color[0],cg=ch.color[1],cb=ch.color[2];
+                        int cii=ci;
+                        pendingActions_.push_back([this,cii,cr,cg,cb](OcctViewer* v){
+                            auto& ent=shapes_[cii];
+                            for(auto& f:ent.faces){
+                                f.color[0]=cr;f.color[1]=cg;f.color[2]=cb;f.useCustomColor=false;
+                                setXcafFaceColor(ent,f.topoFace,cr,cg,cb);
+                            }
+                            v->context()->Redisplay(ent.aisShape,true);
+                        });
+                    }
+                    if (cRainbow) {
+                        ImGui::GetWindowDrawList()->AddRectFilled(cSwPos,ImVec2(cSwPos.x+cSwH,cSwPos.y+cSwH),IM_COL32(0,0,0,255),ImGui::GetStyle().FrameRounding);
+                        ImU32 mc[4]={IM_COL32(0xFF,0x33,0x33,0xFF),IM_COL32(0x33,0x99,0xFF,0xFF),IM_COL32(0x33,0xCC,0x33,0xFF),IM_COL32(0xFF,0xCC,0x00,0xFF)};
+                        ImGui::GetWindowDrawList()->AddRectFilledMultiColor(ImVec2(cSwPos.x+2,cSwPos.y+2),ImVec2(cSwPos.x+cSwH-2,cSwPos.y+cSwH-2),mc[0],mc[1],mc[2],mc[3]);
+                    }
+                    ImGui::SameLine();
+                    ImGui::TextUnformatted(ch.name.c_str());
+                    // Face rows (matching single-solid face layout)
+                    if (chExp) {
+                        for (auto& f : ch.faces) {
+                            ImGui::PushID(20000+f.id);
+                            ImGui::Indent(16.0f);
+                            char fl[32];snprintf(fl,sizeof(fl),"Face %d",f.id);
+                            ImGui::TextUnformatted(fl);
+                            ImGui::SameLine();ImGui::Checkbox("##fv2",&f.visible);
+                            ImGui::SameLine();
+                            if (ImGui::ColorEdit3("##fc2",f.color,ImGuiColorEditFlags_NoInputs|ImGuiColorEditFlags_NoLabel)){
+                                f.useCustomColor=true;ch.color[0]=f.color[0];ch.color[1]=f.color[1];ch.color[2]=f.color[2];
+                                float fr2=f.color[0],fg2=f.color[1],fb2=f.color[2];
+                                int cii2=ci,fi2=f.id;
+                                pendingActions_.push_back([this,cii2,fi2,fr2,fg2,fb2](OcctViewer*v){
+                                    auto& ent2=shapes_[cii2];
+                                    for(auto& ff:ent2.faces)if(ff.id==fi2){setXcafFaceColor(ent2,ff.topoFace,fr2,fg2,fb2);v->context()->Redisplay(ent2.aisShape,true);return;}
+                                });
+                            }
+                            ImGui::Unindent(16.0f);ImGui::PopID();
+                        }
+                    }
+                    ImGui::Unindent(16.0f);ImGui::PopID();
+                }
+            }
+
         // ── Expand: face sub-objects ──
         if (expanded) {
             for (auto& f : entry.faces) {
@@ -498,7 +708,6 @@ void Viewer::drawObjectPanel() {
                 ImGui::TextUnformatted(faceLabel);
                 ImGui::SameLine();
                 ImGui::Checkbox("##fvis", &f.visible);
-                // Face visibility via AIS_ColoredShape::SetCustomColor (TODO)
                 ImGui::SameLine();
                 if (ImGui::ColorEdit3("##fcolor", f.color,
                     ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel)) {
@@ -539,24 +748,47 @@ void Viewer::drawObjectPanel() {
 
     if (ImGui::Button("Show All", ImVec2(-1, 0))) {
         for (auto& entry : shapes_) {
+            if (entry.parentIdx >= 0) continue;
             if (entry.visible) continue;
             entry.visible = true;
             for (auto& f : entry.faces) f.visible = true;
             pendingActions_.push_back([shape = entry.aisShape](OcctViewer* v) {
                 v->displayShape(shape, false);
             });
+            if (entry.parentIdx < 0) {
+                for (int ci : kids[&entry - shapes_.data()]) {
+                    auto& ch = shapes_[ci];
+                    ch.visible = true;
+                    for (auto& f : ch.faces) f.visible = true;
+                    pendingActions_.push_back([cs = ch.aisShape](OcctViewer* v) {
+                        v->displayShape(cs, false);
+                    });
+                }
+            }
         }
         snprintf(statusMsg_, sizeof(statusMsg_), "Show All");
     }
 
     if (ImGui::Button("Hide All", ImVec2(-1, 0))) {
         for (auto& entry : shapes_) {
+            if (entry.parentIdx >= 0) continue;
             if (!entry.visible) continue;
             entry.visible = false;
             for (auto& f : entry.faces) f.visible = false;
             pendingActions_.push_back([shape = entry.aisShape](OcctViewer* v) {
                 v->context()->Erase(shape, false);
             });
+            int idx = (int)(&entry - shapes_.data());
+            if (idx < (int)kids.size()) {
+                for (int ci : kids[idx]) {
+                    auto& ch = shapes_[ci];
+                    ch.visible = false;
+                    for (auto& f : ch.faces) f.visible = false;
+                    pendingActions_.push_back([cs = ch.aisShape](OcctViewer* v) {
+                        v->context()->Erase(cs, false);
+                    });
+                }
+            }
         }
         snprintf(statusMsg_, sizeof(statusMsg_), "Hide All");
     }
@@ -564,7 +796,9 @@ void Viewer::drawObjectPanel() {
     if (ImGui::Button("Delete All", ImVec2(-1, 0)))
         ImGui::OpenPopup("Delete All?");
     if (ImGui::BeginPopupModal("Delete All?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("Remove all %d shapes?", (int)shapes_.size());
+        int nRoots = 0;
+        for (auto& e : shapes_) if (e.parentIdx < 0) nRoots++;
+        ImGui::Text("Remove all %d shapes?", nRoots);
         if (ImGui::Button("Yes", ImVec2(80, 0))) {
             snprintf(statusMsg_, sizeof(statusMsg_), "Deleted %d shape(s)", (int)shapes_.size());
             for (auto& entry : shapes_) {
