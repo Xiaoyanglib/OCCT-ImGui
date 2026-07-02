@@ -458,22 +458,27 @@ static void extractColorsFromDoc(const TDF_Label& shapeLabel,
     NCollection_IndexedDataMap<TopoDS_Shape, XCAFPrs_Style, TopTools_ShapeMapHasher> settings;
     TopLoc_Location loc;
     XCAFPrs::CollectStyleSettings(shapeLabel, loc, settings);
+    // Solid-level color fallback: inherit from parent solid when face has no explicit color
+    struct { bool set; float r, g, b; } fallback = {false, 0.7f, 0.7f, 0.7f};
+    for (int si = 1; si <= settings.Extent(); si++) {
+        const XCAFPrs_Style& stl = settings.FindFromIndex(si);
+        if (stl.IsSetColorSurf() && settings.FindKey(si).ShapeType() != TopAbs_FACE) {
+            Quantity_ColorRGBA c = stl.GetColorSurfRGBA();
+            fallback = {true, (float)c.GetRGB().Red(), (float)c.GetRGB().Green(), (float)c.GetRGB().Blue()};
+        }
+    }
     for (TopExp_Explorer exp(xcafShape, TopAbs_FACE); exp.More(); exp.Next()) {
         TopoDS_Face face = TopoDS::Face(exp.Current());
-        float fr = 0.7f, fg = 0.7f, fb = 0.7f;
+        float fr = fallback.r, fg = fallback.g, fb = fallback.b;
         int idx = settings.FindIndex(face);
         if (idx > 0) {
             const XCAFPrs_Style& stl = settings.FindFromIndex(idx);
             if (stl.IsSetColorSurf()) {
                 Quantity_ColorRGBA c = stl.GetColorSurfRGBA();
-                fr = (float)c.GetRGB().Red();
-                fg = (float)c.GetRGB().Green();
-                fb = (float)c.GetRGB().Blue();
+                fr = (float)c.GetRGB().Red(); fg = (float)c.GetRGB().Green(); fb = (float)c.GetRGB().Blue();
             } else if (!stl.Material().IsNull() && stl.Material()->HasPbrMaterial()) {
                 Quantity_ColorRGBA c = stl.Material()->PbrMaterial().BaseColor;
-                fr = (float)c.GetRGB().Red();
-                fg = (float)c.GetRGB().Green();
-                fb = (float)c.GetRGB().Blue();
+                fr = (float)c.GetRGB().Red(); fg = (float)c.GetRGB().Green(); fb = (float)c.GetRGB().Blue();
             }
         }
         outColors.push_back({face, fr, fg, fb});
@@ -485,7 +490,8 @@ static void extractColorsFromDoc(const TDF_Label& shapeLabel,
 TopoDS_Shape OcctViewer::importShape(const char* path,
                                       std::vector<FaceColorInfo>* outColors,
                                       TDF_Label* outXcafLabel,
-                                      Handle(TDocStd_Document)* outXcafDoc) {
+                                      Handle(TDocStd_Document)* outXcafDoc,
+                                      std::vector<TDF_Label>* outSolidLabels) {
     TopoDS_Shape result;
     const char* ext = fileExt(path);
     if (!*ext) return result;
@@ -503,7 +509,12 @@ TopoDS_Shape OcctViewer::importShape(const char* path,
             if (freeShapes.Length() > 0) {
                 if (outXcafLabel) *outXcafLabel = freeShapes.Value(1);
                 if (outXcafDoc) *outXcafDoc = doc;
-                extractColorsFromDoc(freeShapes.Value(1), st->GetShape(freeShapes.Value(1)), *outColors);
+                for (int k = 1; k <= freeShapes.Length(); k++) {
+                    std::vector<FaceColorInfo> sc;
+                    extractColorsFromDoc(freeShapes.Value(k), st->GetShape(freeShapes.Value(k)), sc);
+                    for (auto& fc : sc) outColors->push_back(fc);
+                    if (outSolidLabels) outSolidLabels->push_back(freeShapes.Value(k));
+                }
             }
         } else {
             STEPControl_Reader reader;
@@ -524,7 +535,12 @@ TopoDS_Shape OcctViewer::importShape(const char* path,
             if (freeShapes.Length() > 0) {
                 if (outXcafLabel) *outXcafLabel = freeShapes.Value(1);
                 if (outXcafDoc) *outXcafDoc = doc;
-                extractColorsFromDoc(freeShapes.Value(1), st->GetShape(freeShapes.Value(1)), *outColors);
+                for (int k = 1; k <= freeShapes.Length(); k++) {
+                    std::vector<FaceColorInfo> sc;
+                    extractColorsFromDoc(freeShapes.Value(k), st->GetShape(freeShapes.Value(k)), sc);
+                    for (auto& fc : sc) outColors->push_back(fc);
+                    if (outSolidLabels) outSolidLabels->push_back(freeShapes.Value(k));
+                }
             }
         } else {
             IGESControl_Reader reader;

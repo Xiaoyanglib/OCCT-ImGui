@@ -52,8 +52,10 @@ public:
     /// Per-shape data, accessible for direct manipulation.
     struct ShapeEntry {
         Handle(AIS_Shape) aisShape;
-        Handle(TDocStd_Document) xcafDoc;       // keep XCAF doc alive
-        TDF_Label                xcafShapeLabel; // shape label within the doc
+        Handle(TDocStd_Document) xcafDoc;
+        TDF_Label                xcafShapeLabel;
+        std::vector<TDF_Label>   allLabels;
+        std::vector<Handle(AIS_Shape)> allAis;
         std::string name;
         bool visible = true;
         bool facesExpanded = false;

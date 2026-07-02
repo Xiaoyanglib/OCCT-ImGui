@@ -63,19 +63,49 @@
 
 namespace OcctImGui {
 
-// ─── XCAF face-color helper ─────────────────────────────────────────────────
+// ─── XCAF helpers ────────────────────────────────────────────────────────────
+
+/// Find which solid label owns a face (searches allLabels if multi-solid).
+static TDF_Label findSolidLabel(const Viewer::ShapeEntry& entry,
+                                 const TopoDS_Face& face) {
+    if (entry.allLabels.size() <= 1) return entry.xcafShapeLabel;
+    Handle(XCAFDoc_ShapeTool) st =
+        XCAFDoc_DocumentTool::ShapeTool(entry.xcafDoc->Main());
+    for (const auto& lbl : entry.allLabels) {
+        for (TopExp_Explorer exp(st->GetShape(lbl), TopAbs_FACE); exp.More(); exp.Next())
+            if (face.IsSame(exp.Current())) return lbl;
+    }
+    return entry.xcafShapeLabel;
+}
+
+/// Find the AIS object that owns a face (for DispatchStyles / Redisplay).
+static Handle(AIS_Shape) findSolidAis(Viewer::ShapeEntry& entry,
+                                       const TopoDS_Face& face) {
+    if (entry.allAis.size() <= 1) return entry.aisShape;
+    TDF_Label sl = findSolidLabel(entry, face);
+    for (size_t i = 0; i < entry.allLabels.size(); i++)
+        if (entry.allLabels[i] == sl) return entry.allAis[i];
+    return entry.aisShape;
+}
 
 static void setXcafFaceColor(const Viewer::ShapeEntry& entry,
                               const TopoDS_Face& face,
                               float r, float g, float b) {
     if (entry.xcafDoc.IsNull()) return;
+    TDF_Label shapeLabel = findSolidLabel(entry, face);
+    if (shapeLabel.IsNull()) shapeLabel = entry.xcafShapeLabel;
     Handle(XCAFDoc_ShapeTool) st =
         XCAFDoc_DocumentTool::ShapeTool(entry.xcafDoc->Main());
     Handle(XCAFDoc_ColorTool) ct =
         XCAFDoc_DocumentTool::ColorTool(entry.xcafDoc->Main());
-    TDF_Label fl = st->AddSubShape(entry.xcafShapeLabel, face);
+    TDF_Label fl = st->AddSubShape(shapeLabel, face);
     ct->SetColor(fl,
         Quantity_Color(r, g, b, Quantity_TOC_RGB), XCAFDoc_ColorSurf);
+    Handle(XCAFDoc_VisMaterialTool) mt =
+        XCAFDoc_DocumentTool::VisMaterialTool(entry.xcafDoc->Main());
+    TDF_Label baseMat;
+    if (mt->GetShapeMaterial(shapeLabel, baseMat))
+        mt->SetShapeMaterial(fl, baseMat);
 }
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -138,30 +168,38 @@ void Viewer::importFile(const char* path) {
         std::vector<FaceColorInfo> faceColors;
         TDF_Label xcafLabel;
         Handle(TDocStd_Document) xcafDoc;
-        TopoDS_Shape shape = v->importShape(p.c_str(), &faceColors, &xcafLabel, &xcafDoc);
+        std::vector<TDF_Label> solidLabels;
+        TopoDS_Shape shape = v->importShape(p.c_str(), &faceColors, &xcafLabel, &xcafDoc, &solidLabels);
         if (shape.IsNull()) {
             snprintf(statusMsg_, sizeof(statusMsg_), "Import failed: %s", p.c_str());
             return;
         }
-        // Apply plastic VisMaterial to the imported doc so DispatchStyles picks it up
-        if (!xcafDoc.IsNull() && !xcafLabel.IsNull()) {
-            XCAFDoc_VisMaterialCommon cm;
-            cm.DiffuseColor  = Quantity_Color(0.7f, 0.7f, 0.7f, Quantity_TOC_RGB);
-            cm.AmbientColor  = Quantity_Color(0.14f, 0.14f, 0.14f, Quantity_TOC_RGB);
-            cm.SpecularColor = Quantity_Color(0.5f, 0.5f, 0.5f, Quantity_TOC_RGB);
-            cm.Shininess     = 0.6f;
-            Handle(XCAFDoc_VisMaterial) mat = new XCAFDoc_VisMaterial();
-            mat->SetCommonMaterial(cm);
-            Handle(XCAFDoc_VisMaterialTool) mt =
-                XCAFDoc_DocumentTool::VisMaterialTool(xcafDoc->Main());
-            TDF_Label matLabel = mt->AddMaterial(mat, "Plastic");
-            mt->SetShapeMaterial(xcafLabel, matLabel);
+        if (solidLabels.empty())
+            solidLabels.push_back(xcafLabel);
+
+        std::vector<Handle(AIS_Shape)> solidAis;
+        for (const auto& sl : solidLabels) {
+            if (!xcafDoc.IsNull() && !sl.IsNull()) {
+                XCAFDoc_VisMaterialCommon cm;
+                cm.DiffuseColor  = Quantity_Color(0.7f, 0.7f, 0.7f, Quantity_TOC_RGB);
+                cm.AmbientColor  = Quantity_Color(0.14f, 0.14f, 0.14f, Quantity_TOC_RGB);
+                cm.SpecularColor = Quantity_Color(0.5f, 0.5f, 0.5f, Quantity_TOC_RGB);
+                cm.Shininess     = 0.6f;
+                Handle(XCAFDoc_VisMaterial) mat = new XCAFDoc_VisMaterial();
+                mat->SetCommonMaterial(cm);
+                Handle(XCAFDoc_VisMaterialTool) mt =
+                    XCAFDoc_DocumentTool::VisMaterialTool(xcafDoc->Main());
+                TDF_Label matLabel = mt->AddMaterial(mat, "Plastic");
+                mt->SetShapeMaterial(sl, matLabel);
+            }
+            Handle(AIS_ColoredShape) ais = new XCAFPrs_AISObject(sl);
+            ais->Attributes()->SetFaceBoundaryDraw(true);
+            ais->Attributes()->SetFaceBoundaryAspect(
+                new Prs3d_LineAspect(Quantity_NOC_BLACK, Aspect_TOL_SOLID, 1.0));
+            v->displayShape(ais);
+            solidAis.push_back(ais);
         }
 
-        Handle(AIS_ColoredShape) ais = new XCAFPrs_AISObject(xcafLabel);
-        ais->Attributes()->SetFaceBoundaryDraw(true);
-    ais->Attributes()->SetFaceBoundaryAspect(
-        new Prs3d_LineAspect(Quantity_NOC_BLACK, Aspect_TOL_SOLID, 1.0));
         const char* name = strrchr(p.c_str(), '/');
 #ifdef _WIN32
         const char* bs = strrchr(p.c_str(), '\\');
@@ -171,9 +209,12 @@ void Viewer::importFile(const char* path) {
         char buf[64];
         strncpy(buf, name, sizeof(buf) - 1);
         buf[sizeof(buf) - 1] = '\0';
-        auto& entry = shapes_.emplace_back(ais, buf, true, 0.7f, 0.7f, 0.7f);
+        auto& entry = shapes_.emplace_back(solidAis[0], buf, true, 0.7f, 0.7f, 0.7f);
         entry.xcafDoc = xcafDoc;
-        entry.xcafShapeLabel = xcafLabel;
+        entry.xcafShapeLabel = solidLabels[0];
+        entry.allLabels = solidLabels;
+        entry.allAis = solidAis;
+
         extractFaces(entry, shape, 0.7f, 0.7f, 0.7f);
         for (size_t i = 0; i < faceColors.size() && i < entry.faces.size(); i++) {
             entry.faces[i].color[0] = faceColors[i].r;
@@ -182,7 +223,16 @@ void Viewer::importFile(const char* path) {
             if (faceColors[i].r != 0.7f || faceColors[i].g != 0.7f || faceColors[i].b != 0.7f)
                 entry.faces[i].useCustomColor = true;
         }
-        v->displayShape(ais);
+        if (!entry.faces.empty()) {
+            bool same = true;
+            auto& f0 = entry.faces[0];
+            for (auto& f : entry.faces) {
+                if (f.color[0] != f0.color[0] || f.color[1] != f0.color[1] || f.color[2] != f0.color[2]) {
+                    same = false; break;
+                }
+            }
+            if (same) { entry.color[0] = f0.color[0]; entry.color[1] = f0.color[1]; entry.color[2] = f0.color[2]; }
+        }
         v->setSelectionMode(selectionMode_);
         v->fitAll();
         snprintf(statusMsg_, sizeof(statusMsg_), "Imported %s (%d faces)", buf, (int)entry.faces.size());
@@ -401,9 +451,28 @@ void Viewer::drawObjectPanel() {
         if (ImGui::Checkbox("##vis", &entry.visible)) {
             bool vis = entry.visible;
             for (auto& f : entry.faces) f.visible = vis;
-            pendingActions_.push_back([shape = entry.aisShape, vis](OcctViewer* v) {
-                if (vis) v->displayShape(shape, false);
-                else     v->context()->Erase(shape, false);
+            auto shapes = entry.allAis.empty()
+                ? std::vector<Handle(AIS_Shape)>{entry.aisShape} : entry.allAis;
+            int si2 = i;
+            pendingActions_.push_back([this, si2, shapes, vis](OcctViewer* v) {
+                for (auto& s : shapes) {
+                    if (vis) v->displayShape(s, false);
+                    else v->context()->Erase(s, false);
+                }
+                if (!vis) return;
+                auto& ent = shapes_[si2];
+                if (ent.xcafDoc.IsNull()) return;
+                Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(ent.xcafDoc->Main());
+                Handle(XCAFDoc_ColorTool) ct = XCAFDoc_DocumentTool::ColorTool(ent.xcafDoc->Main());
+                for (auto& ff : ent.faces) {
+                    if (!ff.visible) continue;
+                    TDF_Label sl = findSolidLabel(ent, ff.topoFace);
+                    ct->SetVisibility(st->AddSubShape(sl, ff.topoFace), Standard_True);
+                }
+                for (auto& a : shapes) {
+                    Handle(XCAFPrs_AISObject)::DownCast(a)->DispatchStyles(Standard_True);
+                    v->context()->Redisplay(a, true);
+                }
             });
         }
         ImGui::SameLine();
@@ -420,27 +489,30 @@ void Viewer::drawObjectPanel() {
         if (ImGui::ColorEdit3("##color", entry.color,
             ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoBorder)) {
             float r = entry.color[0], g = entry.color[1], b = entry.color[2];
-            auto shape = entry.aisShape;
             for (auto& f : entry.faces) {
                 f.color[0] = r; f.color[1] = g; f.color[2] = b;
                 f.useCustomColor = false;
             }
-            // Re-apply uniform color to all faces via XCAF document
             std::vector<TopoDS_Face> allFaces;
             for (auto& f : entry.faces) allFaces.push_back(f.topoFace);
             int si = i;
             pendingActions_.push_back([this, si, allFaces, r, g, b](OcctViewer* v) {
                 auto& ent = shapes_[si];
                 if (ent.xcafDoc.IsNull()) return;
-                // Update base color on shape label
                 Handle(XCAFDoc_ColorTool) ct =
                     XCAFDoc_DocumentTool::ColorTool(ent.xcafDoc->Main());
-                ct->SetColor(ent.xcafShapeLabel,
-                    Quantity_Color(r, g, b, Quantity_TOC_RGB), XCAFDoc_ColorSurf);
-                // Update per-face colors
+                for (const auto& lbl : ent.allLabels) {
+                    if (!lbl.IsNull())
+                        ct->SetColor(lbl, Quantity_Color(r, g, b, Quantity_TOC_RGB), XCAFDoc_ColorSurf);
+                }
+                if (ent.allLabels.empty())
+                    ct->SetColor(ent.xcafShapeLabel, Quantity_Color(r, g, b, Quantity_TOC_RGB), XCAFDoc_ColorSurf);
                 for (auto& tf : allFaces)
                     setXcafFaceColor(ent, tf, r, g, b);
-                v->context()->Redisplay(ent.aisShape, true);
+                for (auto& a : ent.allAis)
+                    v->context()->Redisplay(a, true);
+                if (ent.allAis.empty())
+                    v->context()->Redisplay(ent.aisShape, true);
             });
         }
         if (rainbow) {
@@ -472,12 +544,14 @@ void Viewer::drawObjectPanel() {
         bool del = ImGui::Button("X", ImVec2(btnSize, btnSize));
         ImGui::PopStyleColor(4);
         if (del) {
-            auto shape = entry.aisShape;
-            pendingActions_.push_back([shape](OcctViewer* v) {
-                v->removeShape(shape, true);
+            auto shapes = entry.allAis.empty()
+                ? std::vector<Handle(AIS_Shape)>{entry.aisShape} : entry.allAis;
+            pendingActions_.push_back([shapes](OcctViewer* v) {
+                for (auto& s : shapes) v->removeShape(s, true);
             });
             snprintf(statusMsg_, sizeof(statusMsg_), "Deleted '%s'", entry.name.c_str());
             entry.aisShape.Nullify();
+            entry.allAis.clear();
             entry.faces.clear();
             ImGui::PopID();
             continue;
@@ -498,18 +572,23 @@ void Viewer::drawObjectPanel() {
                     int si2 = i, fi2 = f.id;
                     pendingActions_.push_back([this, si2, fi2, vis](OcctViewer* v) {
                         auto& ent = shapes_[si2];
-                        if (ent.aisShape.IsNull() || ent.xcafDoc.IsNull()) return;
+                        if (ent.xcafDoc.IsNull()) return;
                         Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(ent.xcafDoc->Main());
                         Handle(XCAFDoc_ColorTool) ct = XCAFDoc_DocumentTool::ColorTool(ent.xcafDoc->Main());
+                        Handle(AIS_Shape) targetAis;
                         for (auto& ff : ent.faces) {
                             if (ff.id == fi2) {
-                                TDF_Label faceLabel = st->AddSubShape(ent.xcafShapeLabel, ff.topoFace);
-                                ct->SetVisibility(faceLabel, vis ? Standard_True : Standard_False);
+                                TDF_Label sl = findSolidLabel(ent, ff.topoFace);
+                                ct->SetVisibility(st->AddSubShape(sl, ff.topoFace),
+                                                  vis ? Standard_True : Standard_False);
+                                targetAis = findSolidAis(ent, ff.topoFace);
                                 break;
                             }
                         }
-                        Handle(XCAFPrs_AISObject)::DownCast(ent.aisShape)->DispatchStyles(Standard_True);
-                        v->context()->Redisplay(ent.aisShape, true);
+                        if (!targetAis.IsNull()) {
+                            Handle(XCAFPrs_AISObject)::DownCast(targetAis)->DispatchStyles(Standard_True);
+                            v->context()->Redisplay(targetAis, true);
+                        }
                     });
                 }
                 ImGui::SameLine();
@@ -526,7 +605,8 @@ void Viewer::drawObjectPanel() {
                         for (auto& ff : ent.faces) {
                             if (ff.id == fi) {
                                 setXcafFaceColor(ent, ff.topoFace, fr, fg, fb);
-                                v->context()->Redisplay(ent.aisShape, true);
+                                auto ais = findSolidAis(ent, ff.topoFace);
+                                v->context()->Redisplay(ais, true);
                                 return;
                             }
                         }
@@ -555,8 +635,24 @@ void Viewer::drawObjectPanel() {
             if (entry.visible) continue;
             entry.visible = true;
             for (auto& f : entry.faces) f.visible = true;
-            pendingActions_.push_back([shape = entry.aisShape](OcctViewer* v) {
-                v->displayShape(shape, false);
+            auto shapes = entry.allAis.empty()
+                ? std::vector<Handle(AIS_Shape)>{entry.aisShape} : entry.allAis;
+            int si2 = (int)(&entry - shapes_.data());
+            pendingActions_.push_back([this, si2, shapes](OcctViewer* v) {
+                for (auto& s : shapes) v->displayShape(s, false);
+                auto& ent = shapes_[si2];
+                if (ent.xcafDoc.IsNull()) return;
+                Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(ent.xcafDoc->Main());
+                Handle(XCAFDoc_ColorTool) ct = XCAFDoc_DocumentTool::ColorTool(ent.xcafDoc->Main());
+                for (auto& ff : ent.faces) {
+                    if (!ff.visible) continue;
+                    TDF_Label sl = findSolidLabel(ent, ff.topoFace);
+                    ct->SetVisibility(st->AddSubShape(sl, ff.topoFace), Standard_True);
+                }
+                for (auto& a : shapes) {
+                    Handle(XCAFPrs_AISObject)::DownCast(a)->DispatchStyles(Standard_True);
+                    v->context()->Redisplay(a, true);
+                }
             });
         }
         int mode = selectionMode_;
@@ -571,8 +667,10 @@ void Viewer::drawObjectPanel() {
             if (!entry.visible) continue;
             entry.visible = false;
             for (auto& f : entry.faces) f.visible = false;
-            pendingActions_.push_back([shape = entry.aisShape](OcctViewer* v) {
-                v->context()->Erase(shape, false);
+            auto shapes = entry.allAis.empty()
+                ? std::vector<Handle(AIS_Shape)>{entry.aisShape} : entry.allAis;
+            pendingActions_.push_back([shapes](OcctViewer* v) {
+                for (auto& s : shapes) v->context()->Erase(s, false);
             });
         }
         snprintf(statusMsg_, sizeof(statusMsg_), "Hide All");
@@ -585,10 +683,10 @@ void Viewer::drawObjectPanel() {
         if (ImGui::Button("Yes", ImVec2(80, 0))) {
             snprintf(statusMsg_, sizeof(statusMsg_), "Deleted %d shape(s)", (int)shapes_.size());
             for (auto& entry : shapes_) {
-                // face removal handled by parent AIS_ColoredShape
-                auto shape = entry.aisShape;
-                pendingActions_.push_back([shape](OcctViewer* v) {
-                    v->removeShape(shape, true);
+                auto shapes = entry.allAis.empty()
+                    ? std::vector<Handle(AIS_Shape)>{entry.aisShape} : entry.allAis;
+                pendingActions_.push_back([shapes](OcctViewer* v) {
+                    for (auto& s : shapes) v->removeShape(s, true);
                 });
             }
             shapes_.clear();
@@ -851,7 +949,6 @@ void Viewer::hideSelectedFaces() {
     OcctViewer* v = viewer();
     Handle(AIS_InteractiveContext) ctx = v->context();
 
-    // Collect selected faces from the AIS context
     std::vector<TopoDS_Face> selectedFaces;
     ctx->InitSelected();
     while (ctx->MoreSelected()) {
@@ -866,7 +963,7 @@ void Viewer::hideSelectedFaces() {
 
     bool anyUpdated = false;
     for (auto& entry : shapes_) {
-        if (entry.aisShape.IsNull() || entry.xcafDoc.IsNull()) continue;
+        if (entry.xcafDoc.IsNull()) continue;
         Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(entry.xcafDoc->Main());
         Handle(XCAFDoc_ColorTool) ct = XCAFDoc_DocumentTool::ColorTool(entry.xcafDoc->Main());
         bool entryUpdated = false;
@@ -874,8 +971,8 @@ void Viewer::hideSelectedFaces() {
             for (auto& sf : selectedFaces) {
                 if (f.topoFace.IsSame(sf)) {
                     f.visible = false;
-                    TDF_Label faceLabel = st->AddSubShape(entry.xcafShapeLabel, f.topoFace);
-                    ct->SetVisibility(faceLabel, Standard_False);
+                    TDF_Label sl = findSolidLabel(entry, f.topoFace);
+                    ct->SetVisibility(st->AddSubShape(sl, f.topoFace), Standard_False);
                     entryUpdated = true;
                     anyUpdated = true;
                     break;
@@ -883,8 +980,14 @@ void Viewer::hideSelectedFaces() {
             }
         }
         if (entryUpdated) {
-            Handle(XCAFPrs_AISObject)::DownCast(entry.aisShape)->DispatchStyles(Standard_True);
-            ctx->Redisplay(entry.aisShape, true);
+            for (auto& a : entry.allAis) {
+                Handle(XCAFPrs_AISObject)::DownCast(a)->DispatchStyles(Standard_True);
+                ctx->Redisplay(a, true);
+            }
+            if (entry.allAis.empty()) {
+                Handle(XCAFPrs_AISObject)::DownCast(entry.aisShape)->DispatchStyles(Standard_True);
+                ctx->Redisplay(entry.aisShape, true);
+            }
         }
     }
 
@@ -897,7 +1000,6 @@ void Viewer::deleteSelectedFaces() {
     OcctViewer* v = viewer();
     Handle(AIS_InteractiveContext) ctx = v->context();
 
-    // Collect selected faces from the AIS context
     std::vector<TopoDS_Face> selectedFaces;
     ctx->InitSelected();
     while (ctx->MoreSelected()) {
@@ -912,7 +1014,7 @@ void Viewer::deleteSelectedFaces() {
 
     bool anyUpdated = false;
     for (auto& entry : shapes_) {
-        if (entry.aisShape.IsNull() || entry.xcafDoc.IsNull()) continue;
+        if (entry.xcafDoc.IsNull()) continue;
         Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(entry.xcafDoc->Main());
         Handle(XCAFDoc_ColorTool) ct = XCAFDoc_DocumentTool::ColorTool(entry.xcafDoc->Main());
         bool entryUpdated = false;
@@ -921,8 +1023,8 @@ void Viewer::deleteSelectedFaces() {
             bool found = false;
             for (auto& sf : selectedFaces) {
                 if (it->topoFace.IsSame(sf)) {
-                    TDF_Label faceLabel = st->AddSubShape(entry.xcafShapeLabel, it->topoFace);
-                    ct->SetVisibility(faceLabel, Standard_False);
+                    TDF_Label sl = findSolidLabel(entry, it->topoFace);
+                    ct->SetVisibility(st->AddSubShape(sl, it->topoFace), Standard_False);
                     found = true;
                     entryUpdated = true;
                     anyUpdated = true;
@@ -935,8 +1037,14 @@ void Viewer::deleteSelectedFaces() {
                 ++it;
         }
         if (entryUpdated) {
-            Handle(XCAFPrs_AISObject)::DownCast(entry.aisShape)->DispatchStyles(Standard_True);
-            ctx->Redisplay(entry.aisShape, true);
+            for (auto& a : entry.allAis) {
+                Handle(XCAFPrs_AISObject)::DownCast(a)->DispatchStyles(Standard_True);
+                ctx->Redisplay(a, true);
+            }
+            if (entry.allAis.empty()) {
+                Handle(XCAFPrs_AISObject)::DownCast(entry.aisShape)->DispatchStyles(Standard_True);
+                ctx->Redisplay(entry.aisShape, true);
+            }
         }
     }
 
